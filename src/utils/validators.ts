@@ -70,3 +70,8 @@ export function isValidFileSize(file: File, maxSizeInMB: number): boolean {
   const maxSizeInBytes = maxSizeInMB * 1024 * 1024
   return file.size <= maxSizeInBytes
 }
+
+// Alias exports for backward compatibility
+export const validateEmail = isValidEmail
+export const validateStudentId = isValidStudentId
+export const validatePhone = isValidPhone

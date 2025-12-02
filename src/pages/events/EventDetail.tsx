@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { getEventById, getRegistrationsByEvent } from '../data/mockData'
+import { useAuth } from '../../contexts/AuthContext'
+import { getEventById, getRegistrationsByEvent } from '../../data/mockData'
 import { Calendar, MapPin, Users, ArrowLeft, Edit, Ticket } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'

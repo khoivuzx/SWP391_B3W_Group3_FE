@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 import { GraduationCap } from 'lucide-react'
-import { Input, Button } from '../components/common'
-import { validateEmail, validateStudentId } from '../utils'
+import { Input, Button } from '../../components/common'
+import { validateEmail, validateStudentId } from '../../utils'
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true)
@@ -22,7 +22,10 @@ export default function Login() {
     // Validate
     const newErrors: Record<string, string> = {}
     if (!validateEmail(email)) {
-      newErrors.email = 'Email không hợp lệ (phải có @fpt.edu.vn)'
+      newErrors.email = 'Email không hợp lệ'
+    }
+    if (!password || password.length < 6) {
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự'
     }
     
     if (!isLogin) {

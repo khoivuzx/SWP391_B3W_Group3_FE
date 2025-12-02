@@ -1,12 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { Login } from './pages/auth'
-import Dashboard from './pages/Dashboard.tsx'
+import { Login, Register, ResetPassword } from './pages/auth'
+import Dashboard from './pages/Dashboard'
 import { Events, EventDetail, EventCreate, EventEdit } from './pages/events'
 import { MyTickets, TicketDetail } from './pages/tickets'
 import { CheckIn, SeatManagement, Reports } from './pages/admin'
 import { GuestLanding } from './pages/guest'
-import Layout from './components/Layout.tsx'
+import Layout from './components/Layout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
@@ -18,6 +18,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/guest" element={<GuestLanding />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/dashboard"
         element={

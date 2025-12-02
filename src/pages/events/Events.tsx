@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { mockEvents } from '../data/mockData'
-import { EventCard } from '../components/events'
-import { LinkButton } from '../components/common'
+import { useAuth } from '../../contexts/AuthContext'
+import { mockEvents } from '../../data/mockData'
+import { EventCard } from '../../components/events'
+import { LinkButton } from '../../components/common'
 
 export default function Events() {
   const { user } = useAuth()

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { CalendarDays, Ticket, Users, ShieldCheck } from 'lucide-react'
-import { mockEvents } from '../data/mockData'
+import { mockEvents } from '../../data/mockData'
 
 const stats = [
   { label: 'Sự kiện đã tổ chức', value: '250+' },

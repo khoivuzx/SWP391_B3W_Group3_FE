@@ -1,6 +1,6 @@
-import { useAuth } from '../contexts/AuthContext'
-import { getRegistrationsByUser, getEventById } from '../data/mockData'
-import { TicketCard, EmptyTicketState } from '../components/tickets'
+import { useAuth } from '../../contexts/AuthContext'
+import { getRegistrationsByUser, getEventById } from '../../data/mockData'
+import { TicketCard, EmptyTicketState } from '../../components/tickets'
 
 export default function MyTickets() {
   const { user } = useAuth()

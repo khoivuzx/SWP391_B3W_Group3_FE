@@ -1,5 +1,5 @@
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getEventById } from '../data/mockData'
+import { useParams, useNavigate } from 'react-router-dom'
+import { getEventById } from '../../data/mockData'
 import { ArrowLeft } from 'lucide-react'
 import { useState, useEffect } from 'react'
 

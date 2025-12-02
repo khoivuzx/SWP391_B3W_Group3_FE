@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
-import { getRegistrationsByUser, getEventById } from '../data/mockData'
-import { useAuth } from '../contexts/AuthContext'
+import { getRegistrationsByUser, getEventById } from '../../data/mockData'
+import { useAuth } from '../../contexts/AuthContext'
 import { QRCodeSVG } from 'qrcode.react'
 import { ArrowLeft, Download, Calendar, MapPin } from 'lucide-react'
 import { format } from 'date-fns'

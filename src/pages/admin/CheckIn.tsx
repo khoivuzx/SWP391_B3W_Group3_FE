@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 import { Html5Qrcode } from 'html5-qrcode'
 import { Scan, CheckCircle, XCircle, Search } from 'lucide-react'
-import { mockRegistrations, getEventById } from '../data/mockData'
+import { mockRegistrations, getEventById } from '../../data/mockData'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getEventById, getRegistrationsByEvent, mockEvents } from '../data/mockData'
+import { getEventById, getRegistrationsByEvent, mockEvents } from '../../data/mockData'
 import { Calendar, Users, CheckCircle, XCircle, Download, Filter } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
