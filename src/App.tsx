@@ -1,18 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import Login from './pages/Login.tsx'
+import { Login } from './pages/auth'
 import Dashboard from './pages/Dashboard.tsx'
-import Events from './pages/Events.tsx'
-import EventDetail from './pages/EventDetail.tsx'
-import EventCreate from './pages/EventCreate.tsx'
-import EventEdit from './pages/EventEdit.tsx'
-import MyTickets from './pages/MyTickets.tsx'
-import TicketDetail from './pages/TicketDetail.tsx'
-import CheckIn from './pages/CheckIn.tsx'
-import SeatManagement from './pages/SeatManagement.tsx'
-import Reports from './pages/Reports.tsx'
+import { Events, EventDetail, EventCreate, EventEdit } from './pages/events'
+import { MyTickets, TicketDetail } from './pages/tickets'
+import { CheckIn, SeatManagement, Reports } from './pages/admin'
+import { GuestLanding } from './pages/guest'
 import Layout from './components/Layout.tsx'
-import GuestLanding from './pages/GuestLanding'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
