@@ -7,7 +7,7 @@ import { vi } from 'date-fns/locale'
 
 export default function Events() {
   const { user } = useAuth()
-  const isOrganizer = user?.role === 'Event Organizer' || user?.role === 'Staff'
+  const isOrganizer = user?.role === 'ORGANIZER' || user?.role === 'STAFF'
 
   return (
     <div>

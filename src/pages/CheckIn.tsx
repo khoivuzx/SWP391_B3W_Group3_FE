@@ -7,7 +7,7 @@ import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
 
 export default function CheckIn() {
-  const { user } = useAuth()
+  const { user: _user } = useAuth()
   const [scanning, setScanning] = useState(false)
   const [manualCode, setManualCode] = useState('')
   const scannerRef = useRef<Html5Qrcode | null>(null)
@@ -32,8 +32,8 @@ export default function CheckIn() {
           processCheckIn(decodedText)
           stopScanning()
         },
-        (errorMessage) => {
-          // Ignore errors
+        () => {
+          // Ignore errors - errorMessage not used
         }
       ).catch((err) => {
         console.error('Unable to start scanning', err)

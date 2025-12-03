@@ -7,7 +7,7 @@ import { vi } from 'date-fns/locale'
 
 export default function MyTickets() {
   const { user } = useAuth()
-  const registrations = user ? getRegistrationsByUser(user.id) : []
+  const registrations = user ? getRegistrationsByUser(user.fullName) : []
 
   return (
     <div>

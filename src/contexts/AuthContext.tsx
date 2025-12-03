@@ -1,17 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
-export type UserRole = 'Student' | 'Event Organizer' | 'Staff'
+export type UserRole = 'STUDENT' | 'ORGANIZER' | 'STAFF' | 'ADMIN'
 
 export interface User {
-  id: string
-  name: string
+  id: number
+  fullName: string
   email: string
+  phone?: string
   role: UserRole
-  studentId?: string
+  status: string
+  createdAt?: string
 }
 
 interface AuthContextType {
   user: User | null
+  setUser: (user: User | null) => void
   login: (email: string, password: string, role: UserRole) => void
   logout: () => void
 }
@@ -33,29 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user])
 
   const login = (email: string, password: string, role: UserRole) => {
-    // Mock login - in real app, this would call an API
-    const mockUsers: Record<UserRole, User> = {
-      Student: {
-        id: '1',
-        name: 'Nguyễn Văn A',
-        email: 'student@fpt.edu.vn',
-        role: 'Student',
-        studentId: 'SE123456'
-      },
-      'Event Organizer': {
-        id: '2',
-        name: 'Trần Thị B',
-        email: 'organizer@fpt.edu.vn',
-        role: 'Event Organizer'
-      },
-      Staff: {
-        id: '3',
-        name: 'Lê Văn C',
-        email: 'staff@fpt.edu.vn',
-        role: 'Staff'
-      }
-    }
-    setUser(mockUsers[role])
+    // This function is kept for compatibility but is not used
+    // The actual login is done via setUser in Login.tsx
   }
 
   const logout = () => {
@@ -63,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, setUser, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

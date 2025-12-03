@@ -1,38 +1,107 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { GraduationCap } from 'lucide-react'
+import axios from 'axios'
+
+// Use proxy to avoid CORS issues in development
+const API_URL = '/api'
+
+// Configure axios defaults
+axios.defaults.headers.common['Content-Type'] = 'application/json'
+axios.defaults.headers.common['Accept'] = 'application/json'
+
+interface FormData {
+  email: string
+  password: string
+}
 
 export default function Login() {
-  const [isLogin, setIsLogin] = useState(true)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [studentId, setStudentId] = useState('')
-  const { login } = useAuth()
+  const [formData, setFormData] = useState<FormData>({
+    email: '',
+    password: ''
+  })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const { setUser } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    setError('')
+  }
+
+  const handleLogin = async () => {
+    try {
+      const response = await axios.post(`${API_URL}/login`, {
+        email: formData.email,
+        password: formData.password
+      })
+      
+      console.log('Login Response:', response.data)
+      
+      // Backend returns: {status: "success", token: "...", user: {...}}
+      if (response.data && response.data.status === 'success') {
+        const { user, token } = response.data
+        
+        console.log('User:', user)
+        console.log('Token:', token)
+        
+        // Save token and user to localStorage
+        localStorage.setItem('token', token)
+        localStorage.setItem('user', JSON.stringify(user))
+        
+        // Update user in AuthContext with data from API
+        setUser(user)
+        
+        console.log('Navigating to dashboard...')
+        
+        // Navigate to dashboard
+        navigate('/dashboard')
+      } else if (response.data.status === 'fail') {
+        // Backend error response: {status: "fail", code: "...", message: "..."}
+        setError(response.data.message || 'Đăng nhập thất bại')
+      } else {
+        setError('Đăng nhập thất bại')
+      }
+    } catch (error: any) {
+      console.error('Login error:', error)
+      // Handle specific error cases
+      if (error.code === 'ERR_NETWORK') {
+        throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra:\n- Backend đã chạy chưa?\n- CORS đã được cấu hình chưa?')
+      }
+      throw error
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!isLogin) {
-      // Đăng ký
-      if (password !== confirmPassword) {
-        alert('Mật khẩu xác nhận không khớp!')
-        return
-      }
-      // Mock registration
-      alert('Đăng ký thành công! Vui lòng đăng nhập.')
-      setIsLogin(true)
-      setPassword('')
-      setConfirmPassword('')
-      return
-    }
+    setLoading(true)
+    setError('')
     
-    // Đăng nhập
-    login(email, password, 'Student')
-    navigate('/dashboard')
+    try {
+      await handleLogin()
+    } catch (err: any) {
+      console.error('Login Error:', err)
+      
+      let errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại!'
+      
+      if (err.message && err.message.includes('Backend đã chạy')) {
+        errorMessage = err.message
+      } else if (err.response) {
+        // Server responded with error
+        errorMessage = err.response.data?.message || `Lỗi ${err.response.status}: ${err.response.statusText}`
+      } else if (err.request) {
+        // Request made but no response
+        errorMessage = 'Không thể kết nối đến server!\n\n⚠️ Vui lòng kiểm tra:\n1. Backend đã chạy chưa? (http://localhost:8080)\n2. CORS đã được cấu hình trong backend chưa?'
+      }
+      
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -43,44 +112,14 @@ export default function Login() {
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">FPT Events</h1>
-          <p className="text-gray-600 mt-2">
-            {isLogin ? 'Đăng nhập vào hệ thống' : 'Tạo tài khoản mới'}
-          </p>
+          <p className="text-gray-600 mt-2">Đăng nhập vào hệ thống</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {!isLogin && (
-            <>
-              <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Họ và tên
-                </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Nguyễn Văn A"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="studentId" className="block text-sm font-medium text-gray-700 mb-2">
-                  Mã sinh viên
-                </label>
-                <input
-                  id="studentId"
-                  type="text"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                  placeholder="SE123456"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
           )}
 
           <div>
@@ -89,9 +128,10 @@ export default function Login() {
             </label>
             <input
               id="email"
+              name="email"
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={formData.email}
+              onChange={handleInputChange}
               placeholder="email@fpt.edu.vn"
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -104,58 +144,49 @@ export default function Login() {
             </label>
             <input
               id="password"
+              name="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formData.password}
+              onChange={handleInputChange}
               placeholder="Nhập mật khẩu"
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
-          {!isLogin && (
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Xác nhận mật khẩu
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Nhập lại mật khẩu"
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          )}
-
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-colors"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
           >
-            {isLogin ? 'Đăng nhập' : 'Đăng ký'}
+            {loading ? (
+              <span className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Đang xử lý...
+              </span>
+            ) : (
+              'Đăng nhập'
+            )}
           </button>
-        </form>
 
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            {isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}{' '}
-            <button
-              onClick={() => {
-                setIsLogin(!isLogin)
-                setPassword('')
-                setConfirmPassword('')
-              }}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              {isLogin ? 'Đăng ký ngay' : 'Đăng nhập'}
-            </button>
-          </p>
-        </div>
+          <div className="text-center space-y-3">
+            <p className="text-sm text-gray-600">
+              Chưa có tài khoản?{' '}
+              <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                Đăng ký ngay
+              </Link>
+            </p>
+            <p className="text-sm text-gray-600">
+              <Link to="/reset-password" className="text-blue-600 hover:text-blue-700 font-medium">
+                Quên mật khẩu?
+              </Link>
+            </p>
+          </div>
+        </form>
       </div>
     </div>
   )
 }
-
-

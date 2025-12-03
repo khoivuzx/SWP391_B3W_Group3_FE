@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login.tsx'
+import Register from './pages/Register.tsx'
+import ResetPassword from './pages/ResetPassword.tsx'
 import Dashboard from './pages/Dashboard.tsx'
 import Events from './pages/Events.tsx'
 import EventDetail from './pages/EventDetail.tsx'
@@ -24,6 +26,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/guest" element={<GuestLanding />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/dashboard"
         element={

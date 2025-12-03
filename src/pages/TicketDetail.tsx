@@ -2,14 +2,14 @@ import { useParams, Link } from 'react-router-dom'
 import { getRegistrationsByUser, getEventById } from '../data/mockData'
 import { useAuth } from '../contexts/AuthContext'
 import { QRCodeSVG } from 'qrcode.react'
-import { ArrowLeft, Download, Calendar, MapPin } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
-  const registrations = user ? getRegistrationsByUser(user.id) : []
+  const registrations = user ? getRegistrationsByUser(String(user.id)) : []
   const registration = registrations.find(r => r.id === id)
   const event = registration ? getEventById(registration.eventId) : null
 

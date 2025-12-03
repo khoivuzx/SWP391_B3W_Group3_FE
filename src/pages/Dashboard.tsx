@@ -13,7 +13,7 @@ export default function Dashboard() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
-          Chào mừng, {user?.name}!
+          Chào mừng, {user?.fullName}!
         </h1>
         <p className="text-gray-600 mt-2">
           Vai trò: <span className="font-medium">{user?.role}</span>

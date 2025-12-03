@@ -218,7 +218,7 @@ export default function Reports() {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {eventTypeChartData.map((entry, index) => (
+                {eventTypeChartData.map((_entry, index) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={['#3b82f6', '#10b981', '#f59e0b'][index % 3]}

@@ -1,6 +1,6 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Calendar, Ticket, CheckSquare, BarChart3, LogOut, Menu, X } from 'lucide-react'
+import { LogOut, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Layout() {
@@ -13,8 +13,8 @@ export default function Layout() {
     navigate('/')
   }
 
-  const isOrganizer = user?.role === 'Event Organizer' || user?.role === 'Staff'
-  const isStaff = user?.role === 'Staff'
+  const isOrganizer = user?.role === 'ORGANIZER' || user?.role === 'STAFF'
+  const isStaff = user?.role === 'STAFF'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -77,7 +77,7 @@ export default function Layout() {
             {/* User Info */}
             <div className="hidden md:flex items-center space-x-4">
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.fullName}</p>
                 <p className="text-xs text-gray-500">{user?.role}</p>
               </div>
               <button
@@ -152,7 +152,7 @@ export default function Layout() {
                 </Link>
               )}
               <div className="px-3 py-2 border-t mt-2">
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.fullName}</p>
                 <p className="text-xs text-gray-500">{user?.role}</p>
                 <button
                   onClick={handleLogout}

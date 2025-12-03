@@ -15,8 +15,8 @@ export default function EventDetail() {
   const [showRegisterModal, setShowRegisterModal] = useState(false)
   const [selectedSeat, setSelectedSeat] = useState<string>('')
 
-  const isOrganizer = user?.role === 'Event Organizer' || user?.role === 'Staff'
-  const isRegistered = registrations.some(r => r.userId === user?.id)
+  const isOrganizer = user?.role === 'ORGANIZER' || user?.role === 'STAFF'
+  const isRegistered = registrations.some(r => r.userId === String(user?.id))
   const canRegister = event && event.status === 'Upcoming' && !isRegistered && event.currentParticipants < event.maxParticipants
 
   if (!event) {
