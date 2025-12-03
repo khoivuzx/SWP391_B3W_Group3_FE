@@ -1,22 +1,20 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth, UserRole } from '../../contexts/AuthContext'
 import { GraduationCap } from 'lucide-react'
-import { Input, Button } from '../../components/common'
-import { validateEmail, validateStudentId } from '../../utils'
+import { Input, Button, MockCredentials } from '../../components/common'
+import { validateEmail } from '../../utils'
 
 export default function Login() {
-  const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [studentId, setStudentId] = useState('')
+  const [role, setRole] = useState<UserRole>('STUDENT')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     // Validate
@@ -28,37 +26,30 @@ export default function Login() {
       newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự'
     }
     
-    if (!isLogin) {
-      if (!fullName.trim()) {
-        newErrors.fullName = 'Vui lòng nhập họ tên'
-      }
-      if (!validateStudentId(studentId)) {
-        newErrors.studentId = 'Mã sinh viên không hợp lệ (VD: SE123456)'
-      }
-      if (password !== confirmPassword) {
-        newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp'
-      }
-    }
-    
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
     }
     
     setErrors({})
+    setLoading(true)
     
-    if (!isLogin) {
-      // Mock registration
-      alert('Đăng ký thành công! Vui lòng đăng nhập.')
-      setIsLogin(true)
-      setPassword('')
-      setConfirmPassword('')
-      return
+    try {
+      await login(email, password, role)
+      
+      // Navigate based on role
+      if (role === 'STUDENT') {
+        navigate('/dashboard')
+      } else if (role === 'ORGANIZER') {
+        navigate('/dashboard')
+      } else if (role === 'ADMIN' || role === 'STAFF') {
+        navigate('/dashboard')
+      }
+    } catch (error: any) {
+      setErrors({ form: error.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.' })
+    } finally {
+      setLoading(false)
     }
-    
-    // Login
-    login(email, password, 'Student')
-    navigate('/dashboard')
   }
 
   return (
@@ -70,34 +61,18 @@ export default function Login() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900">FPT Events</h1>
           <p className="text-gray-600 mt-2">
-            {isLogin ? 'Đăng nhập vào hệ thống' : 'Tạo tài khoản mới'}
+            Đăng nhập vào hệ thống
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {!isLogin && (
-            <>
-              <Input
-                label="Họ và tên"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Nguyễn Văn A"
-                required
-                error={errors.fullName}
-              />
+        {/* Mock Credentials Display */}
+        <MockCredentials />
 
-              <Input
-                label="Mã sinh viên"
-                type="text"
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                placeholder="SE123456"
-                required
-                error={errors.studentId}
-                helperText="Định dạng: 2 chữ cái + 6 chữ số"
-              />
-            </>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {errors.form && (
+            <div className="rounded-md bg-red-50 p-4">
+              <div className="text-sm text-red-800">{errors.form}</div>
+            </div>
           )}
 
           <Input
@@ -117,41 +92,49 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Nhập mật khẩu"
             required
+            error={errors.password}
           />
 
-          {!isLogin && (
-            <Input
-              label="Xác nhận mật khẩu"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Nhập lại mật khẩu"
-              required
-              error={errors.confirmPassword}
-            />
-          )}
+          <div>
+            <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+              Vai trò
+            </label>
+            <select
+              id="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value as UserRole)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="STUDENT">Sinh viên</option>
+              <option value="ORGANIZER">Tổ chức sự kiện</option>
+              <option value="STAFF">Nhân viên</option>
+              <option value="ADMIN">Quản trị viên</option>
+            </select>
+          </div>
 
-          <Button type="submit" className="w-full">
-            {isLogin ? 'Đăng nhập' : 'Đăng ký'}
+          <div className="flex items-center justify-between">
+            <div className="text-sm">
+              <Link
+                to="/auth/reset-password"
+                className="font-medium text-blue-600 hover:text-blue-500"
+              >
+                Quên mật khẩu?
+              </Link>
+            </div>
+            <div className="text-sm">
+              <Link
+                to="/auth/register"
+                className="font-medium text-blue-600 hover:text-blue-500"
+              >
+                Đăng ký
+              </Link>
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </Button>
         </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            {isLogin ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}{' '}
-            <button
-              onClick={() => {
-                setIsLogin(!isLogin)
-                setPassword('')
-                setConfirmPassword('')
-                setErrors({})
-              }}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              {isLogin ? 'Đăng ký ngay' : 'Đăng nhập'}
-            </button>
-          </p>
-        </div>
       </div>
     </div>
   )

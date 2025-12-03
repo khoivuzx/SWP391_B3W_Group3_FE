@@ -1,4 +1,82 @@
 import { Event, Registration, Seat } from '../types/event'
+import { User, UserRole } from '../contexts/AuthContext'
+
+// Mock users for authentication
+export const mockUsers: User[] = [
+  // Admin user
+  {
+    id: 1,
+    fullName: 'Nguyễn Văn Admin',
+    email: 'admin@fpt.edu.vn',
+    phone: '0901234567',
+    role: 'ADMIN' as UserRole,
+    status: 'ACTIVE',
+    password: 'admin123',
+    createdAt: new Date().toISOString()
+  },
+  // Staff user
+  {
+    id: 2,
+    fullName: 'Trần Thị Staff',
+    email: 'staff@fpt.edu.vn',
+    phone: '0902345678',
+    role: 'STAFF' as UserRole,
+    status: 'ACTIVE',
+    password: 'staff123',
+    createdAt: new Date().toISOString()
+  },
+  // Organizer users
+  {
+    id: 3,
+    fullName: 'Lê Văn Organizer',
+    email: 'organizer@fpt.edu.vn',
+    phone: '0903456789',
+    role: 'ORGANIZER' as UserRole,
+    status: 'ACTIVE',
+    password: 'organizer123',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 4,
+    fullName: 'Phạm Thị Tổ Chức',
+    email: 'organizer2@fpt.edu.vn',
+    phone: '0904567890',
+    role: 'ORGANIZER' as UserRole,
+    status: 'ACTIVE',
+    password: 'organizer123',
+    createdAt: new Date().toISOString()
+  },
+  // Student users
+  {
+    id: 5,
+    fullName: 'Hoàng Văn Student',
+    email: 'student@fpt.edu.vn',
+    phone: '0905678901',
+    role: 'STUDENT' as UserRole,
+    status: 'ACTIVE',
+    password: 'student123',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 6,
+    fullName: 'Vũ Thị Sinh Viên',
+    email: 'student2@fpt.edu.vn',
+    phone: '0906789012',
+    role: 'STUDENT' as UserRole,
+    status: 'ACTIVE',
+    password: 'student123',
+    createdAt: new Date().toISOString()
+  }
+]
+
+// Helper functions for authentication
+export const findUserByCredentials = (email: string, password: string): User | undefined => {
+  return mockUsers.find(user => user.email === email && user.password === password)
+}
+
+export const findUserByEmail = (email: string): User | undefined => {
+  return mockUsers.find(user => user.email === email)
+}
 
 export const mockEvents: Event[] = [
   {
