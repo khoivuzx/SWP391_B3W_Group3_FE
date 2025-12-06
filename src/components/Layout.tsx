@@ -50,6 +50,14 @@ export default function Layout() {
                   Tạo sự kiện
                 </Link>
               )}
+              {(user?.role === 'ORGANIZER' || isStaff) && (
+                <Link
+                  to="/dashboard/event-requests"
+                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  {isStaff ? 'Quản lý yêu cầu' : 'Yêu cầu của tôi'}
+                </Link>
+              )}
               {user?.role === 'ORGANIZER' && (
                 <>
                   <Link
@@ -150,6 +158,15 @@ export default function Layout() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Tạo sự kiện
+                </Link>
+              )}
+              {(user?.role === 'ORGANIZER' || isStaff) && (
+                <Link
+                  to="/dashboard/event-requests"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {isStaff ? 'Quản lý yêu cầu' : 'Yêu cầu của tôi'}
                 </Link>
               )}
               {user?.role === 'ORGANIZER' && (
