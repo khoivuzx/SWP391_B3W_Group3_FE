@@ -8,7 +8,7 @@ import type { EventDetail } from '../types/event'
 type EventRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 type EventRequest = {
-  id: string
+  requestId: number
   title: string
   description?: string
   reason?: string
@@ -73,6 +73,8 @@ export default function EventRequests() {
 
       if (response.ok) {
         const data = await response.json()
+        console.log('Event requests data:', data)
+        console.log('First request:', data[0])
         setRequests(data)
       } else {
         throw new Error('Failed to fetch event requests')
@@ -95,14 +97,80 @@ export default function EventRequests() {
     setSelectedRequest(null)
   }
 
-  const handleApprove = async (requestId: string) => {
-    // TODO: Implement approve API call
-    console.log('Approve request:', requestId)
+  const handleApprove = async (requestId: number) => {
+    if (!confirm('Bạn có chắc chắn muốn duyệt yêu cầu này?')) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const payload = {
+        requestId: requestId,
+        action: 'APPROVE',
+        organizerNote: '',
+        areaId: 0
+      }
+      console.log('Approve payload:', payload)
+      
+      const response = await fetch('http://localhost:3000/api/event-requests/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (response.ok) {
+        alert('Đã duyệt yêu cầu thành công!')
+        // Refresh the list
+        fetchEventRequests()
+      } else {
+        const errorData = await response.text()
+        throw new Error(errorData || 'Failed to approve request')
+      }
+    } catch (error) {
+      console.error('Error approving request:', error)
+      alert('Không thể duyệt yêu cầu. Vui lòng thử lại.')
+    }
   }
 
-  const handleReject = async (requestId: string) => {
-    // TODO: Implement reject API call
-    console.log('Reject request:', requestId)
+  const handleReject = async (requestId: number) => {
+    if (!confirm('Bạn có chắc chắn muốn từ chối yêu cầu này?')) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const payload = {
+        requestId: requestId,
+        action: 'REJECT',
+        organizerNote: '',
+        areaId: 0
+      }
+      console.log('Reject payload:', payload)
+      
+      const response = await fetch('http://localhost:3000/api/event-requests/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (response.ok) {
+        alert('Đã từ chối yêu cầu.')
+        // Refresh the list
+        fetchEventRequests()
+      } else {
+        const errorData = await response.text()
+        throw new Error(errorData || 'Failed to reject request')
+      }
+    } catch (error) {
+      console.error('Error rejecting request:', error)
+      alert('Không thể từ chối yêu cầu. Vui lòng thử lại.')
+    }
   }
 
   // Convert EventRequest to EventDetail format for modal
@@ -110,7 +178,7 @@ export default function EventRequests() {
     if (!request) return null
     
     return {
-      eventId: parseInt(request.id),
+      eventId: request.requestId,
       title: request.title,
       description: request.description || 'Chưa có mô tả',
       startTime: request.preferredStart || new Date().toISOString(),
@@ -216,7 +284,7 @@ export default function EventRequests() {
             <tbody className="bg-white divide-y divide-gray-200">
               {requests.map((req) => (
                 <tr 
-                  key={req.id} 
+                  key={req.requestId} 
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => handleViewDetails(req)}
                 >
@@ -245,14 +313,14 @@ export default function EventRequests() {
                       {req.status === 'PENDING' && (
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => handleApprove(req.id)}
+                            onClick={() => handleApprove(req.requestId)}
                             className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100"
                           >
                             <CheckCircle2 className="w-3 h-3 mr-1" />
                             Duyệt
                           </button>
                           <button
-                            onClick={() => handleReject(req.id)}
+                            onClick={() => handleReject(req.requestId)}
                             className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100"
                           >
                             <XCircle className="w-3 h-3 mr-1" />
