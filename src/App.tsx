@@ -16,7 +16,6 @@ import Reports from './pages/Reports.tsx'
 import MyBills from './pages/MyBills.tsx'
 import BillDetail from './pages/BillDetail.tsx'
 import EventRequestCreate from './pages/EventRequestCreate.tsx'
-import MyEventRequests from './pages/MyEventRequests.tsx'
 import EventRequests from './pages/EventRequests.tsx'
 import Payment from './pages/Payment.tsx'
 import PaymentSuccess from './pages/PaymentSuccess.tsx'
@@ -58,7 +57,6 @@ function AppRoutes() {
         <Route path="tickets/:id" element={<TicketDetail />} />
         <Route path="bills" element={<MyBills />} />
         <Route path="bills/:id" element={<BillDetail />} />
-        <Route path="my-event-requests" element={<MyEventRequests />} />
         <Route path="event-requests" element={<EventRequests />} />
         <Route path="event-requests/create" element={<EventRequestCreate />} />
         <Route path="check-in" element={<CheckIn />} />

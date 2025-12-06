@@ -1,19 +1,25 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { CheckCircle2, XCircle, FileClock } from 'lucide-react'
+import { CheckCircle2, XCircle, FileClock, PlusCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { EventDetailModal } from '../components/events/EventDetailModal'
+import type { EventDetail } from '../types/event'
 
 type EventRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 type EventRequest = {
   id: string
   title: string
-  studentName: string
+  description?: string
+  reason?: string
+  preferredStart?: string
+  preferredEnd?: string
+  expectedParticipants?: number
+  bannerUrl?: string
+  studentName?: string
   createdAt: string
   status: EventRequestStatus
 }
-
-// TODO: Fetch event requests from API
-const requests: EventRequest[] = []
 
 const getStatusLabel = (status: EventRequestStatus) => {
   switch (status) {
@@ -39,14 +45,91 @@ const getStatusClass = (status: EventRequestStatus) => {
 
 export default function EventRequests() {
   const { user } = useAuth()
-  const isOrganizer = user?.role === 'ORGANIZER' || user?.role === 'STAFF'
+  const isStaff = user?.role === 'STAFF'
+  const isOrganizer = user?.role === 'ORGANIZER'
+  const [requests, setRequests] = useState<EventRequest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<EventRequest | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
-  if (!isOrganizer) {
+  useEffect(() => {
+    fetchEventRequests()
+  }, [isStaff, isOrganizer])
+
+  const fetchEventRequests = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      // Staff sees all requests, Organizer sees only their own
+      const endpoint = isStaff 
+        ? 'http://localhost:3000/api/organizer/event-requests'
+        : 'http://localhost:3000/api/event-requests/my'
+      
+      const response = await fetch(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setRequests(data)
+      } else {
+        throw new Error('Failed to fetch event requests')
+      }
+    } catch (error) {
+      console.error('Error fetching event requests:', error)
+      setError(error instanceof Error ? error.message : 'Failed to fetch event requests')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleViewDetails = (request: EventRequest) => {
+    setSelectedRequest(request)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedRequest(null)
+  }
+
+  const handleApprove = async (requestId: string) => {
+    // TODO: Implement approve API call
+    console.log('Approve request:', requestId)
+  }
+
+  const handleReject = async (requestId: string) => {
+    // TODO: Implement reject API call
+    console.log('Reject request:', requestId)
+  }
+
+  // Convert EventRequest to EventDetail format for modal
+  const convertToEventDetail = (request: EventRequest): EventDetail | null => {
+    if (!request) return null
+    
+    return {
+      eventId: parseInt(request.id),
+      title: request.title,
+      description: request.description || 'Chưa có mô tả',
+      startTime: request.preferredStart || new Date().toISOString(),
+      endTime: request.preferredEnd || new Date().toISOString(),
+      location: 'Chưa xác định',
+      maxSeats: request.expectedParticipants || 0,
+      currentParticipants: 0,
+      status: request.status,
+      bannerUrl: request.bannerUrl || null,
+      tickets: [],
+      areaId: undefined,
+    } as EventDetail
+  }
+
+  if (!isStaff && !isOrganizer) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">
-          Chỉ Event Organizer hoặc Staff mới có quyền xem danh sách yêu cầu
-          sự kiện.
+          Bạn không có quyền truy cập trang này.
         </p>
         <Link to="/dashboard" className="text-blue-600 mt-4 inline-block">
           Quay lại Dashboard
@@ -60,15 +143,41 @@ export default function EventRequests() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Quản lý yêu cầu sự kiện
+            {isStaff ? 'Quản lý yêu cầu sự kiện' : 'Yêu cầu sự kiện của tôi'}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Duyệt các yêu cầu tổ chức sự kiện do sinh viên gửi lên.
+            {isStaff 
+              ? 'Duyệt các yêu cầu tổ chức sự kiện do sinh viên gửi lên.'
+              : 'Theo dõi các yêu cầu tổ chức sự kiện bạn đã gửi cho Ban tổ chức.'
+            }
           </p>
         </div>
+        {isOrganizer && (
+          <Link
+            to="/dashboard/event-requests/create"
+            className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+          >
+            <PlusCircle className="w-4 h-4 mr-2" />
+            Gửi yêu cầu mới
+          </Link>
+        )}
       </div>
 
-      {requests.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-lg shadow-md p-10 text-center">
+          <p className="text-gray-500">Đang tải...</p>
+        </div>
+      ) : error ? (
+        <div className="bg-white rounded-lg shadow-md p-10 text-center">
+          <p className="text-red-500">{error}</p>
+          <button 
+            onClick={fetchEventRequests}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Thử lại
+          </button>
+        </div>
+      ) : requests.length === 0 ? (
         <div className="bg-white rounded-lg shadow-md p-10 text-center">
           <FileClock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 text-lg">
@@ -86,29 +195,39 @@ export default function EventRequests() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tiêu đề
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Người gửi
-                </th>
+                {isStaff && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Người gửi
+                  </th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ngày gửi
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Trạng thái
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thao tác
-                </th>
+                {isStaff && (
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Thao tác
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {mockRequests.map(req => (
-                <tr key={req.id} className="hover:bg-gray-50">
+              {requests.map((req) => (
+                <tr 
+                  key={req.id} 
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => handleViewDetails(req)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {req.title}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {req.studentName}
-                  </td>
+                  {isStaff && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {req.studentName}
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(req.createdAt).toLocaleString('vi-VN')}
                   </td>
@@ -121,30 +240,44 @@ export default function EventRequests() {
                       {getStatusLabel(req.status)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
-                    <button
-                      type="button"
-                      className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100"
-                    >
-                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                      Duyệt
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex items-center px-3 py-1.5 rounded-md bg-red-50 text-red-700 text-xs font-medium hover:bg-red-100"
-                    >
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Từ chối
-                    </button>
-                  </td>
+                  {isStaff && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                      {req.status === 'PENDING' && (
+                        <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleApprove(req.id)}
+                            className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100"
+                          >
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Duyệt
+                          </button>
+                          <button
+                            onClick={() => handleReject(req.id)}
+                            className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100"
+                          >
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Từ chối
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <EventDetailModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        event={convertToEventDetail(selectedRequest!)}
+        loading={false}
+        error={null}
+        token={localStorage.getItem('token')}
+      />
     </div>
   )
 }
-
 

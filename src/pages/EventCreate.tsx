@@ -41,20 +41,31 @@ export default function EventCreate() {
 
       // Send event data with bannerUrl to backend
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8080/api/events', {
+      
+      // Convert datetime-local format to ISO string if needed
+      const requestBody = {
+        title: formData.title,
+        description: formData.description,
+        reason: formData.organizer,
+        preferredStartTime: formData.startDate ? new Date(formData.startDate).toISOString() : null,
+        preferredEndTime: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+        expectedParticipants: parseInt(formData.maxParticipants) || 0,
+        bannerUrl
+      }
+
+      console.log('Sending request body:', requestBody)
+
+      const response = await fetch('http://localhost:3000/api/event-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          ...formData,
-          bannerUrl // Include the uploaded image URL
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (response.ok) {
-        navigate('/dashboard/events')
+        navigate('/dashboard/event-requests')
       } else {
         const errorData = await response.json()
         throw new Error(errorData.message || 'Failed to create event')
