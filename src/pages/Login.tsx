@@ -22,7 +22,7 @@ interface FormData {
 // 2. Chọn reCAPTCHA v2 (checkbox)
 // 3. Thêm domain: localhost và domain production
 // 4. Copy Site Key và dán vào đây
-const RECAPTCHA_SITE_KEY = '6LdzFCUsAAAAACKng2zcYCnJRurAxsMOtlF4Qt5O' // Test key - THAY BẰNG SITE KEY THẬT
+const RECAPTCHA_SITE_KEY = '6LeVFSUsAAAAAMas_aThh1RZtxiGjWgRquLuAoTU' // Test key - THAY BẰNG SITE KEY THẬT
 const USE_REAL_RECAPTCHA = false // Đổi thành true khi đã có Site Key thật
 
 export default function Login() {
@@ -90,8 +90,8 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Bắt buộc phải xác thực reCAPTCHA
-    if (!recaptchaToken) {
+    // Validate reCAPTCHA nếu dùng mode thật
+    if (USE_REAL_RECAPTCHA && !recaptchaToken) {
       setError('Vui lòng xác nhận bạn không phải là robot!')
       return
     }
@@ -186,7 +186,7 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={loading || !recaptchaToken}
+            disabled={loading || (USE_REAL_RECAPTCHA && !recaptchaToken)}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
           >
             {loading ? (

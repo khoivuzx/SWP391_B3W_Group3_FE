@@ -26,7 +26,7 @@ interface FormData {
 // 3. Thêm domain: localhost và domain production
 // 4. Copy Site Key và dán vào đây
 const RECAPTCHA_SITE_KEY = '6LeVFSUsAAAAAMas_aThh1RZtxiGjWgRquLuAoTU' // Test key - THAY BẰNG SITE KEY THẬT
-const USE_REAL_RECAPTCHA = false // Đổi thành true khi đã có Site Key thật
+const USE_REAL_RECAPTCHA = true // Đổi thành true khi đã có Site Key thật
 
 export default function Register() {
   const [isOtpSent, setIsOtpSent] = useState(false)
@@ -69,8 +69,8 @@ export default function Register() {
   }
 
   const handleSendOtp = async () => {
-    // Bắt buộc phải xác thực reCAPTCHA
-    if (!recaptchaToken) {
+    // Validate reCAPTCHA nếu dùng mode thật
+    if (USE_REAL_RECAPTCHA && !recaptchaToken) {
       setError('Vui lòng xác nhận bạn không phải là robot!')
       return
     }
