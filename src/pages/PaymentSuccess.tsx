@@ -1,7 +1,11 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { CheckCircle2 } from 'lucide-react'
 
 export default function PaymentSuccess() {
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const ticketId = params.get('ticketId')
+
   return (
     <div className="flex items-center justify-center min-h-[400px]">
       <div className="bg-white rounded-lg shadow-md p-10 max-w-md text-center">
@@ -9,10 +13,17 @@ export default function PaymentSuccess() {
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Thanh toán thành công
         </h1>
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-600 mb-4">
           Vé của bạn đã được tạo. Bạn có thể xem trong mục{' '}
           <span className="font-semibold">Vé của tôi</span>.
         </p>
+
+        {ticketId && (
+          <p className="text-sm text-gray-500 mb-4">
+            Mã vé: <span className="font-mono">{ticketId}</span>
+          </p>
+        )}
+
         <div className="space-y-3">
           <Link
             to="/dashboard/my-tickets"
@@ -31,5 +42,3 @@ export default function PaymentSuccess() {
     </div>
   )
 }
-
-

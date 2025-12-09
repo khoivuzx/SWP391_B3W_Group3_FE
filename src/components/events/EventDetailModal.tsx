@@ -1,5 +1,6 @@
 // src/components/events/EventDetailModal.tsx
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Calendar, Users, Clock, MapPin, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -35,6 +36,7 @@ export function EventDetailModal({
   userRole,
   onEdit,
 }: EventDetailModalProps) {
+  const navigate = useNavigate()
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null)
   const [allSeats, setAllSeats] = useState<Seat[]>([])
@@ -106,9 +108,19 @@ export function EventDetailModal({
   const confirmSeat = () => {
     if (!selectedSeat || !selectedTicket || !event) return
 
-    // TODO: Call API to reserve seat + create order
-    // For now, redirect to payment page
-    window.location.href = '/dashboard/payment'
+    // Pass required state to Payment page
+    navigate('/dashboard/payment', {
+      state: {
+        eventId: event.eventId,
+        categoryTicketId: selectedTicket.categoryTicketId,
+        seatId: selectedSeat.seatId,
+        eventTitle: event.title,
+        ticketName: selectedTicket.name,
+        seatCode: selectedSeat.seatCode,
+        rowNo: selectedSeat.rowNo,
+        price: selectedTicket.price,
+      },
+    })
   }
 
   const handleClose = () => {

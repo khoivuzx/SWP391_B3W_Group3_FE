@@ -13,7 +13,7 @@ export default function Layout() {
     navigate('/')
   }
 
-  const isOrganizer = user?.role === 'ORGANIZER' || user?.role === 'STAFF'
+  const isOrganizer = user?.role === 'ORGANIZER'
   const isStaff = user?.role === 'STAFF'
 
   return (
@@ -61,20 +61,14 @@ export default function Layout() {
               {user?.role === 'ORGANIZER' && (
                 <>
                   <Link
-                    to="/dashboard/speakers"
+                    to="/dashboard/check-in"
                     className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
                   >
-                    Diễn giả
-                  </Link>
-                  <Link
-                    to="/dashboard/venues"
-                    className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  >
-                    Địa điểm
+                    Check-in
                   </Link>
                 </>
               )}
-              {!isOrganizer && (
+              {!isOrganizer && !isStaff && (
                 <>
                   <Link
                     to="/dashboard/my-tickets"
@@ -97,12 +91,6 @@ export default function Layout() {
                     className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
                   >
                     Địa điểm
-                  </Link>
-                  <Link
-                    to="/dashboard/check-in"
-                    className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  >
-                    Check-in
                   </Link>
                   <Link
                     to="/dashboard/reports"
@@ -178,22 +166,15 @@ export default function Layout() {
               {user?.role === 'ORGANIZER' && (
                 <>
                   <Link
-                    to="/dashboard/speakers"
+                    to="/dashboard/check-in"
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Diễn giả
-                  </Link>
-                  <Link
-                    to="/dashboard/venues"
-                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Địa điểm
+                    Check-in
                   </Link>
                 </>
               )}
-              {!isOrganizer && (
+              {!isOrganizer && !isStaff && (
                 <>
                   <Link
                     to="/dashboard/my-tickets"
@@ -219,13 +200,6 @@ export default function Layout() {
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Địa điểm
-                  </Link>
-                  <Link
-                    to="/dashboard/check-in"
-                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Check-in
                   </Link>
                   <Link
                     to="/dashboard/reports"
