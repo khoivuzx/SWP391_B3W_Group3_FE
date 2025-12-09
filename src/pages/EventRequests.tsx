@@ -60,6 +60,7 @@ export default function EventRequests() {
   const [isProcessModalOpen, setIsProcessModalOpen] = useState(false)
   const [processAction, setProcessAction] = useState<'APPROVE' | 'REJECT'>('APPROVE')
   const [requestToProcess, setRequestToProcess] = useState<EventRequest | null>(null)
+  const [activeTab, setActiveTab] = useState<'pending' | 'processed'>('pending')
 
   useEffect(() => {
     fetchEventRequests()
@@ -176,6 +177,16 @@ export default function EventRequests() {
     )
   }
 
+  // Filter requests based on active tab (only for staff)
+  const filteredRequests = isStaff 
+    ? activeTab === 'pending'
+      ? requests.filter(req => req.status === 'PENDING')
+      : requests.filter(req => req.status === 'APPROVED' || req.status === 'REJECTED')
+    : requests
+
+  const pendingCount = requests.filter(req => req.status === 'PENDING').length
+  const processedCount = requests.filter(req => req.status === 'APPROVED' || req.status === 'REJECTED').length
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -201,6 +212,46 @@ export default function EventRequests() {
         )}
       </div>
 
+      {/* Tabs for Staff */}
+      {isStaff && (
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('pending')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'pending'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Đang chờ duyệt
+                {pendingCount > 0 && (
+                  <span className="ml-2 py-0.5 px-2 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium">
+                    {pendingCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('processed')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'processed'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Đã xử lý
+                {processedCount > 0 && (
+                  <span className="ml-2 py-0.5 px-2 rounded-full bg-gray-100 text-gray-800 text-xs font-medium">
+                    {processedCount}
+                  </span>
+                )}
+              </button>
+            </nav>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="bg-white rounded-lg shadow-md p-10 text-center">
           <p className="text-gray-500">Đang tải...</p>
@@ -215,14 +266,24 @@ export default function EventRequests() {
             Thử lại
           </button>
         </div>
-      ) : requests.length === 0 ? (
+      ) : filteredRequests.length === 0 ? (
         <div className="bg-white rounded-lg shadow-md p-10 text-center">
           <FileClock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 text-lg">
-            Hiện chưa có yêu cầu sự kiện nào
+            {isStaff && activeTab === 'pending' 
+              ? 'Không có yêu cầu đang chờ duyệt'
+              : isStaff && activeTab === 'processed'
+              ? 'Chưa có yêu cầu nào được xử lý'
+              : 'Hiện chưa có yêu cầu sự kiện nào'
+            }
           </p>
           <p className="text-sm text-gray-400 mt-2">
-            Khi sinh viên gửi yêu cầu, dữ liệu sẽ xuất hiện tại đây.
+            {isStaff && activeTab === 'pending'
+              ? 'Khi có yêu cầu mới, chúng sẽ xuất hiện tại đây.'
+              : isStaff && activeTab === 'processed'
+              ? 'Các yêu cầu đã duyệt hoặc từ chối sẽ hiển thị ở đây.'
+              : 'Khi bạn gửi yêu cầu, dữ liệu sẽ xuất hiện tại đây.'
+            }
           </p>
         </div>
       ) : (
@@ -244,7 +305,7 @@ export default function EventRequests() {
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Trạng thái
                 </th>
-                {isStaff && (
+                {isStaff && activeTab === 'pending' && (
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Thao tác
                   </th>
@@ -252,7 +313,7 @@ export default function EventRequests() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {requests.map((req) => (
+              {filteredRequests.map((req) => (
                 <tr 
                   key={req.requestId} 
                   className="hover:bg-gray-50 cursor-pointer"
@@ -278,7 +339,7 @@ export default function EventRequests() {
                       {getStatusLabel(req.status)}
                     </span>
                   </td>
-                  {isStaff && (
+                  {isStaff && activeTab === 'pending' && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                       {req.status === 'PENDING' && (
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
