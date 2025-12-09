@@ -84,14 +84,47 @@ export function SeatGrid({ seats, loading = false, selectedSeat, onSeatSelect }:
     return 'border-gray-300 bg-gray-50 hover:bg-gray-100'
   }
 
+  // Identify VIP rows
+  const sortedRows = Object.keys(seatsByRow).sort()
+  const vipRows = sortedRows.filter(row => 
+    seatsByRow[row].some(seat => seat.seatType === 'VIP')
+  )
+  const firstVipRow = vipRows[0]
+  const lastVipRow = vipRows[vipRows.length - 1]
+  const hasVipSection = vipRows.length > 0
+
   return (
     <div className="mb-6">
+      {/* VIP Section Label */}
+      {hasVipSection && (
+        <div className="mb-2 flex items-center gap-2">
+          <div className="px-3 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-full border border-red-300">
+            VIP SECTION
+          </div>
+        </div>
+      )}
+
       {/* Seat Grid */}
       <div className="space-y-3">
-        {Object.keys(seatsByRow).sort().map(row => {
+        {sortedRows.map((row, rowIndex) => {
           const seatGrid = createSeatGrid(seatsByRow[row], maxColumns)
+          const isVipRow = vipRows.includes(row)
+          const isFirstVipRow = row === firstVipRow
+          const isLastVipRow = row === lastVipRow
+          
           return (
-            <div key={row} className="flex items-center space-x-2">
+            <div 
+              key={row} 
+              className={`flex items-center space-x-2 ${
+                isVipRow 
+                  ? `${isFirstVipRow ? 'pt-3' : ''} ${isLastVipRow ? 'pb-3' : ''} pl-2 pr-2 border-l-4 border-r-4 border-red-500 ${
+                      isFirstVipRow ? 'border-t-4 rounded-t-lg' : ''
+                    } ${
+                      isLastVipRow ? 'border-b-4 rounded-b-lg' : ''
+                    } bg-red-50/30`
+                  : ''
+              }`}
+            >
               <div className="w-8 text-center font-semibold text-gray-700 text-sm">{row}</div>
               <div className="flex-1 flex gap-2">
                 {seatGrid.map((seat, index) => (

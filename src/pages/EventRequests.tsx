@@ -2,24 +2,26 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { CheckCircle2, XCircle, FileClock, PlusCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { EventDetailModal } from '../components/events/EventDetailModal'
+import { EventRequestDetailModal } from '../components/events/EventRequestDetailModal'
 import { ProcessRequestModal } from '../components/events/ProcessRequestModal'
-import type { EventDetail } from '../types/event'
 
 type EventRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 type EventRequest = {
   requestId: number
+  requesterId: number
+  requesterName: string
   title: string
-  description?: string
-  reason?: string
-  preferredStartTime?: string
-  preferredEndTime?: string
-  expectedParticipants?: number
-  bannerUrl?: string
-  studentName?: string
-  createdAt: string
+  description: string
+  preferredStartTime: string
+  preferredEndTime: string
+  expectedCapacity: number
   status: EventRequestStatus
+  createdAt: string
+  processedBy?: number
+  processedByName?: string
+  processedAt?: string
+  organizerNote?: string
   createdEventId?: number
 }
 
@@ -63,7 +65,7 @@ export default function EventRequests() {
     fetchEventRequests()
   }, [isStaff, isOrganizer])
 
-  const fetchEventRequests = async () => {
+  const fetchEventRequests = async () => { 
     try {
       const token = localStorage.getItem('token')
       // Staff sees all requests, Organizer sees only their own
@@ -159,26 +161,6 @@ export default function EventRequests() {
       console.error('Error processing request:', error)
       alert('Không thể xử lý yêu cầu. Vui lòng thử lại.')
     }
-  }
-
-  // Convert EventRequest to EventDetail format for modal
-  const convertToEventDetail = (request: EventRequest): EventDetail | null => {
-    if (!request) return null
-    
-    return {
-      eventId: request.requestId,
-      title: request.title,
-      description: request.description || 'Chưa có mô tả',
-      startTime: request.preferredStartTime || new Date().toISOString(),
-      endTime: request.preferredEndTime || new Date().toISOString(),
-      location: 'Chưa xác định',
-      maxSeats: request.expectedParticipants || 0,
-      currentParticipants: 0,
-      status: request.status,
-      bannerUrl: request.bannerUrl || null,
-      tickets: [],
-      areaId: undefined,
-    } as EventDetail
   }
 
   if (!isStaff && !isOrganizer) {
@@ -281,7 +263,7 @@ export default function EventRequests() {
                   </td>
                   {isStaff && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {req.studentName}
+                      {req.requesterName}
                     </td>
                   )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -325,13 +307,10 @@ export default function EventRequests() {
         </div>
       )}
 
-      <EventDetailModal
+      <EventRequestDetailModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        event={convertToEventDetail(selectedRequest!)}
-        loading={false}
-        error={null}
-        token={localStorage.getItem('token')}
+        request={selectedRequest}
         userRole={user?.role}
         onEdit={handleEditEvent}
       />
