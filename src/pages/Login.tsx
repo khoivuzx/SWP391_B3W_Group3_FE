@@ -23,7 +23,7 @@ interface FormData {
 // 3. Thêm domain: localhost và domain production
 // 4. Copy Site Key và dán vào đây
 const RECAPTCHA_SITE_KEY = '6LeVFSUsAAAAAMas_aThh1RZtxiGjWgRquLuAoTU' // Test key - THAY BẰNG SITE KEY THẬT
-const USE_REAL_RECAPTCHA = false // Đổi thành true khi đã có Site Key thật
+const USE_REAL_RECAPTCHA = true // Đổi thành false để dùng TEST_BYPASS khi debug nhanh
 
 export default function Login() {
   const [formData, setFormData] = useState<FormData>({
@@ -33,7 +33,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null)
-  const recaptchaRef = useRef<ReCAPTCHA>(null)
+  const recaptchaRef = useRef<ReCAPTCHA | null>(null)
   const { setUser } = useAuth()
   const navigate = useNavigate()
 
@@ -44,79 +44,99 @@ export default function Login() {
   }
 
   const handleLogin = async () => {
+    // ensure we have a token when using real recaptcha
+    if (USE_REAL_RECAPTCHA && !recaptchaToken) {
+      throw new Error('Vui lòng xác thực reCAPTCHA trước khi đăng nhập.')
+    }
+
+    const tokenToSend = USE_REAL_RECAPTCHA ? recaptchaToken : 'TEST_BYPASS'
+    console.log('Sending login request. recaptchaToken (first 40 chars):', tokenToSend ? tokenToSend.slice(0, 40) : null)
+
     try {
       const response = await axios.post(`${API_URL}/login`, {
         email: formData.email,
         password: formData.password,
-        recaptchaToken: USE_REAL_RECAPTCHA ? recaptchaToken : 'TEST_BYPASS'
+        recaptchaToken: tokenToSend
       })
-      
+
       console.log('Login Response:', response.data)
-      
-      // Backend returns: {status: "success", token: "...", user: {...}}
+
       if (response.data && response.data.status === 'success') {
         const { user, token } = response.data
-        
+
         console.log('User:', user)
-        console.log('Token:', token)
-        
+        console.log('Token (first 40 chars):', token ? token.slice(0, 40) : null)
+
         // Save token and user to localStorage
         localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(user))
-        
+
         // Update user in AuthContext with data from API
         setUser(user)
-        
-        console.log('Navigating to dashboard...')
-        
+
+        // Reset captcha on success (optional)
+        try {
+          recaptchaRef.current?.reset()
+        } catch (_) {}
+
         // Navigate to dashboard
         navigate('/dashboard')
-      } else if (response.data.status === 'fail') {
-        // Backend error response: {status: "fail", code: "...", message: "..."}
-        setError(response.data.message || 'Đăng nhập thất bại')
+        return
+} else if (response.data && response.data.status === 'fail') {
+        const msg = response.data.message || 'Đăng nhập thất bại'
+        throw new Error(msg)
       } else {
-        setError('Đăng nhập thất bại')
+        throw new Error('Đăng nhập thất bại')
       }
-    } catch (error: any) {
-      console.error('Login error:', error)
-      // Handle specific error cases
-      if (error.code === 'ERR_NETWORK') {
-        throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra:\n- Backend đã chạy chưa?\n- CORS đã được cấu hình chưa?')
+    } catch (err: any) {
+      console.error('Login error (axios):', err)
+      if (err.response) {
+        console.error('Server response data:', err.response.data)
+        // surface server message when available
+        const srvMsg = err.response.data?.message || err.response.data?.error || null
+        if (srvMsg) throw new Error(srvMsg)
+        throw new Error(`Lỗi ${err.response.status}: ${err.response.statusText}`)
+      } else if (err.request) {
+        throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra backend và CORS.')
+      } else {
+        throw err
       }
-      throw error
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Validate reCAPTCHA nếu dùng mode thật
+
+    console.log('recaptchaToken at submit:', recaptchaToken)
+
+    // If using real reCAPTCHA, require token
     if (USE_REAL_RECAPTCHA && !recaptchaToken) {
       setError('Vui lòng xác nhận bạn không phải là robot!')
       return
     }
-    
+
     setLoading(true)
     setError('')
-    
+
     try {
       await handleLogin()
     } catch (err: any) {
-      console.error('Login Error:', err)
-      
+      console.error('Login Error (submit):', err)
       let errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại!'
-      
+
       if (err.message && err.message.includes('Backend đã chạy')) {
         errorMessage = err.message
-      } else if (err.response) {
-        // Server responded with error
-        errorMessage = err.response.data?.message || `Lỗi ${err.response.status}: ${err.response.statusText}`
-      } else if (err.request) {
-        // Request made but no response
-        errorMessage = 'Không thể kết nối đến server!\n\n⚠️ Vui lòng kiểm tra:\n1. Backend đã chạy chưa? (http://localhost:8080)\n2. CORS đã được cấu hình trong backend chưa?'
+      } else if (err.message) {
+        // err.message often contains server message from above
+        errorMessage = err.message
       }
-      
+
       setError(errorMessage)
+      // reset captcha if token turned invalid or server rejected it
+      try {
+        recaptchaRef.current?.reset()
+        setRecaptchaToken(null)
+      } catch (_) {}
     } finally {
       setLoading(false)
     }
@@ -148,7 +168,7 @@ export default function Login() {
               id="email"
               name="email"
               type="email"
-              value={formData.email}
+value={formData.email}
               onChange={handleInputChange}
               placeholder="email@fpt.edu.vn"
               required
@@ -176,11 +196,15 @@ export default function Login() {
             <ReCAPTCHA
               ref={recaptchaRef}
               sitekey={RECAPTCHA_SITE_KEY}
-              onChange={async (token) => {
+              onChange={(token) => {
+                console.log('reCAPTCHA onChange token (first 40 chars):', token ? token.slice(0, 40) : null)
                 setRecaptchaToken(token)
                 setError('')
               }}
-              onExpired={() => setRecaptchaToken(null)}
+              onExpired={() => {
+                console.log('reCAPTCHA expired')
+                setRecaptchaToken(null)
+              }}
             />
           </div>
 
@@ -220,4 +244,3 @@ export default function Login() {
     </div>
   )
 }
-

@@ -9,13 +9,11 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8080/FPTEventManagement',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/FPTEventManagement/api')
+        rewrite: (path) => path
       }
     }
   }
 })
-
-
