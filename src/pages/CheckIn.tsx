@@ -7,6 +7,8 @@ import { vi } from 'date-fns/locale'
 
 export default function CheckIn() {
   const { user: _user } = useAuth()
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('token') : null
   const [scanning, setScanning] = useState(false)
   const [manualCode, setManualCode] = useState('')
   const scannerRef = useRef<Html5Qrcode | null>(null)
@@ -20,23 +22,26 @@ export default function CheckIn() {
     if (scanning && !scannerRef.current) {
       const html5QrCode = new Html5Qrcode('reader')
       scannerRef.current = html5QrCode
-      
-      html5QrCode.start(
-        { facingMode: 'environment' },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 }
-        },
-        (decodedText) => {
-          processCheckIn(decodedText)
-          stopScanning()
-        },
-        () => {
-          // Ignore errors - errorMessage not used
-        }
-      ).catch((err) => {
-        console.error('Unable to start scanning', err)
-      })
+
+      html5QrCode
+        .start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            // qrbox hơi lớn một chút cho dễ canh vào khung
+            qrbox: { width: 280, height: 280 },
+          },
+          (decodedText) => {
+            processCheckIn(decodedText)
+            stopScanning()
+          },
+          () => {
+            // ignore frame errors
+          },
+        )
+        .catch((err) => {
+          console.error('Unable to start scanning', err)
+        })
     }
 
     return () => {
@@ -57,24 +62,82 @@ export default function CheckIn() {
     setScanning(false)
   }
 
+  const extractTicketId = (code: string): number | null => {
+    const trimmed = code.trim()
+
+    const numeric = Number(trimmed)
+    if (!Number.isNaN(numeric) && Number.isInteger(numeric) && numeric > 0) {
+      return numeric
+    }
+
+    const match = trimmed.match(/ticketId=(\d+)/i)
+    if (match) {
+      return Number(match[1])
+    }
+
+    return null
+  }
+
   const processCheckIn = async (qrCode: string) => {
-    // TODO: Replace with API call to check-in endpoint
-    try {
-      // const response = await fetch('/api/check-in', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ qrCode })
-      // })
-      // const data = await response.json()
-      
+    setCheckInResult(null)
+
+    if (!token) {
       setCheckInResult({
         success: false,
-        message: 'Vui lòng kết nối API để thực hiện check-in'
+        message: 'Bạn cần đăng nhập STAFF/ADMIN để thực hiện check-in.',
+      })
+      return
+    }
+
+    const ticketId = extractTicketId(qrCode)
+    if (!ticketId) {
+      setCheckInResult({
+        success: false,
+        message: 'QR không hợp lệ hoặc không đọc được ticketId.',
+      })
+      return
+    }
+
+    try {
+      const url = `/api/staff/checkin?ticketId=${encodeURIComponent(
+        String(ticketId),
+      )}`
+
+      const res = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await res.json().catch(() => ({} as any))
+
+      if (!res.ok) {
+        const msg =
+          (data && (data.error || data.message)) ||
+          `Check-in thất bại (HTTP ${res.status})`
+        setCheckInResult({
+          success: false,
+          message: msg,
+        })
+        return
+      }
+
+      setCheckInResult({
+        success: true,
+        message: data.message || 'Check-in thành công',
+        registration: {
+          ticketId: data.ticketId,
+          checkedInAt: data.checkinTime,
+        },
       })
     } catch (error) {
+      console.error(error)
       setCheckInResult({
         success: false,
-        message: 'Lỗi kết nối API'
+        message: 'Lỗi kết nối API',
       })
     }
   }
@@ -92,17 +155,22 @@ export default function CheckIn() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Check-in sự kiện</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">
+        Check-in sự kiện
+      </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Scanner Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">Quét mã QR</h2>
-          
+
           {!scanning ? (
             <div className="space-y-4">
               <button
-                onClick={() => setScanning(true)}
+                onClick={() => {
+                  resetResult()
+                  setScanning(true)
+                }}
                 className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
                 <Scan className="w-5 h-5 mr-2" />
@@ -111,7 +179,7 @@ export default function CheckIn() {
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
+                  <div className="w-full border-t border-gray-300" />
                 </div>
                 <div className="relative flex justify-center text-sm">
                   <span className="px-2 bg-white text-gray-500">Hoặc</span>
@@ -120,16 +188,18 @@ export default function CheckIn() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nhập mã QR thủ công
+                  Nhập mã QR / ID vé thủ công
                 </label>
                 <div className="flex space-x-2">
                   <input
                     type="text"
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value)}
-                    placeholder="Nhập mã QR"
+                    placeholder="Nhập ticketId hoặc nội dung QR"
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    onKeyPress={(e) => e.key === 'Enter' && handleManualCheckIn()}
+                    onKeyDown={(e) =>
+                      e.key === 'Enter' && handleManualCheckIn()
+                    }
                   />
                   <button
                     onClick={handleManualCheckIn}
@@ -142,9 +212,32 @@ export default function CheckIn() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '1' }}>
-                <div id="reader" style={{ width: '100%', height: '100%' }}></div>
+              {/* Khung camera + overlay canh ô quét */}
+              <div className="relative bg-black rounded-xl overflow-hidden">
+                {/* Video + canvas của html5-qrcode */}
+                <div
+                  id="reader"
+                  className="w-full h-full"
+                  style={{ minHeight: 320 }}
+                />
+
+                {/* Overlay khung vuông để canh QR */}
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="relative w-64 h-64 rounded-xl border-2 border-green-400/80">
+                    {/* 4 góc nổi bật */}
+                    <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-green-400 rounded-tl-xl" />
+                    <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-green-400 rounded-tr-xl" />
+                    <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-green-400 rounded-bl-xl" />
+                    <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-green-400 rounded-br-xl" />
+                  </div>
+                </div>
+
+                {/* Hướng dẫn nhỏ ở dưới */}
+                <div className="absolute bottom-4 inset-x-4 bg-black/60 text-white text-sm text-center rounded-lg px-3 py-2">
+                  Đưa mã QR vào trong khung xanh và giữ máy ổn định
+                </div>
               </div>
+
               <button
                 onClick={() => {
                   stopScanning()
@@ -161,12 +254,14 @@ export default function CheckIn() {
         {/* Result Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">Kết quả check-in</h2>
-          
+
           {!checkInResult ? (
             <div className="text-center py-12 text-gray-500">
               <Scan className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <p>Chưa có kết quả check-in</p>
-              <p className="text-sm mt-2">Quét mã QR hoặc nhập mã thủ công để bắt đầu</p>
+              <p className="text-sm mt-2">
+                Quét mã QR hoặc nhập mã thủ công để bắt đầu
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -188,40 +283,29 @@ export default function CheckIn() {
 
               {checkInResult.registration && (
                 <div className="border-t pt-4 space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Họ tên:</p>
-                    <p className="font-medium">{checkInResult.registration.userName}</p>
-                  </div>
-                  {checkInResult.registration.studentId && (
+                  {checkInResult.registration.ticketId && (
                     <div>
-                      <p className="text-sm text-gray-600">Mã sinh viên:</p>
-                      <p className="font-medium">{checkInResult.registration.studentId}</p>
-                    </div>
-                  )}
-                  {checkInResult.registration.seatNumber && (
-                    <div>
-                      <p className="text-sm text-gray-600">Ghế ngồi:</p>
-                      <p className="font-medium">{checkInResult.registration.seatNumber}</p>
-                    </div>
-                  )}
-                  {checkInResult.registration.checkedInAt && (
-                    <div>
-                      <p className="text-sm text-gray-600">Thời gian check-in:</p>
+                      <p className="text-sm text-gray-600">Ticket ID:</p>
                       <p className="font-medium">
-                        {format(new Date(checkInResult.registration.checkedInAt), 'dd/MM/yyyy HH:mm:ss', { locale: vi })}
+                        {checkInResult.registration.ticketId}
                       </p>
                     </div>
                   )}
-                  {(() => {
-                    // Temporary - event data not available
-                    const event: any = null
-                    return event ? (
-                      <div>
-                        <p className="text-sm text-gray-600">Sự kiện:</p>
-                        <p className="font-medium">{event.title}</p>
-                      </div>
-                    ) : null
-                  })()}
+
+                  {checkInResult.registration.checkedInAt && (
+                    <div>
+                      <p className="text-sm text-gray-600">
+                        Thời gian check-in:
+                      </p>
+                      <p className="font-medium">
+                        {format(
+                          new Date(checkInResult.registration.checkedInAt),
+                          'dd/MM/yyyy HH:mm:ss',
+                          { locale: vi },
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -238,4 +322,3 @@ export default function CheckIn() {
     </div>
   )
 }
-

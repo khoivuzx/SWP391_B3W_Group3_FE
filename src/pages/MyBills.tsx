@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import { FileText, CreditCard, Eye } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { FileText, CreditCard } from 'lucide-react'
 
 type Bill = {
   id: string
@@ -8,69 +8,102 @@ type Bill = {
   status: 'PENDING' | 'PAID' | 'CANCELED'
 }
 
-// TODO: Fetch bills from API
-const bills: Bill[] = []
-
 export default function MyBills() {
+  const [bills, setBills] = useState<Bill[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchBills = async () => {
+      try {
+        setLoading(true)
+        const token = localStorage.getItem('token')
+
+        const res = await fetch('/api/payment/my-bills', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'ngrok-skip-browser-warning': '1'
+          },
+          credentials: 'include'
+        })
+
+        const data = await res.json()
+        console.log('JSON BE trả về:', data)
+
+        const mapped: Bill[] = data.map((b: any) => ({
+          id: b.billId?.toString(),
+          createdAt: b.createdAt,
+          totalAmount: Number(b.totalAmount),
+          // 🔥 FIX: lấy từ paymentStatus, không phải status
+          status: b.paymentStatus
+        }))
+
+        setBills(mapped)
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchBills()
+  }, [])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Hóa đơn của tôi</h1>
-        <div className="flex items-center text-sm text-gray-500">
-          <FileText className="w-4 h-4 mr-2" />
-          Quản lý hóa đơn thanh toán vé sự kiện
-        </div>
       </div>
 
-      {bills.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-md p-10 text-center">
-          <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">Bạn chưa có hóa đơn nào</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Khi bạn mua vé sự kiện, hóa đơn sẽ xuất hiện tại đây.
-          </p>
+      {loading && (
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          Đang tải hóa đơn...
         </div>
-      ) : (
+      )}
+
+      {!loading && error && <div className="text-red-600">{error}</div>}
+
+      {!loading && !error && bills.length > 0 && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase">
                   Mã hóa đơn
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase">
                   Ngày tạo
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase">
                   Số tiền
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase">
                   Trạng thái
                 </th>
-                <th className="px-6 py-3" />
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {bills.map(bill => (
                 <tr key={bill.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">
                     #{bill.id}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-gray-600">
                     {new Date(bill.createdAt).toLocaleString('vi-VN')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
+                  <td className="px-6 py-4 text-sm text-right font-semibold text-gray-900">
                     {bill.totalAmount.toLocaleString('vi-VN')} đ
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                  <td className="px-6 py-4 text-sm text-center">
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        bill.status === 'PAID'
-                          ? 'bg-green-100 text-green-800'
-                          : bill.status === 'PENDING'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                        ${
+                          bill.status === 'PAID'
+                            ? 'bg-green-100 text-green-700'
+                            : bill.status === 'PENDING'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
                     >
                       <CreditCard className="w-3 h-3 mr-1" />
                       {bill.status === 'PAID'
@@ -79,15 +112,6 @@ export default function MyBills() {
                         ? 'Chờ thanh toán'
                         : 'Đã hủy'}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                    <Link
-                      to={`/dashboard/bills/${bill.id}`}
-                      className="inline-flex items-center text-blue-600 hover:text-blue-700"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Chi tiết
-                    </Link>
                   </td>
                 </tr>
               ))}
@@ -98,5 +122,3 @@ export default function MyBills() {
     </div>
   )
 }
-
-

@@ -1,27 +1,53 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { CreditCard, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 type PaymentState = {
+  eventId: number
+  categoryTicketId: number
+  seatId: number
   eventTitle?: string
   ticketName?: string
   seatCode?: string
+  rowNo?: string
   price?: number
 }
 
 export default function Payment() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuth()
+
   const state = (location.state || {}) as PaymentState
 
   const handlePay = () => {
-    // Mock payment – replace with real gateway later
-    const isSuccess = true
-    if (isSuccess) {
-      navigate('/dashboard/payment/success')
-    } else {
-      navigate('/dashboard/payment/failed')
+    // Thiếu state → quay lại dashboard
+    if (!state.eventId || !state.categoryTicketId || !state.seatId) {
+      alert('Thiếu thông tin vé, vui lòng chọn lại vé từ Dashboard.')
+      navigate('/dashboard')
+      return
     }
+
+    const userId = (user as any)?.userId ?? (user as any)?.id
+    if (!userId) {
+      alert('Bạn cần đăng nhập trước khi thanh toán.')
+      navigate('/login')
+      return
+    }
+
+    const params = new URLSearchParams({
+      userId: String(userId),
+      eventId: String(state.eventId),
+      categoryTicketId: String(state.categoryTicketId),
+      seatId: String(state.seatId),
+    })
+
+    // Nhờ proxy Vite, /api/... → http://localhost:8084/FPTEventManagement/...
+    const paymentUrl = `/api/payment-ticket?${params.toString()}`
+
+    // 👉 Điều hướng toàn trang (không mở tab mới)
+    window.location.replace(paymentUrl)
   }
 
   return (
@@ -42,7 +68,7 @@ export default function Payment() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Thanh toán vé</h1>
             <p className="text-sm text-gray-500">
-              Xác nhận thông tin và tiến hành thanh toán.
+              Xác nhận thông tin và tiến hành thanh toán qua VNPay.
             </p>
           </div>
         </div>
@@ -64,10 +90,14 @@ export default function Payment() {
                 <span className="font-medium">{state.ticketName}</span>
               </p>
             )}
-            {state.seatCode && (
+            {(state.rowNo || state.seatCode) && (
               <p>
-                Ghế:{' '}
-                <span className="font-medium">{state.seatCode}</span>
+                Vị trí ghế:{' '}
+                <span className="font-medium">
+                  {state.rowNo ? `Hàng ${state.rowNo}` : ''}
+                  {state.rowNo && state.seatCode ? ', ' : ''}
+                  {state.seatCode ? `Ghế ${state.seatCode}` : ''}
+                </span>
               </p>
             )}
             <p>
@@ -82,12 +112,10 @@ export default function Payment() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Phương thức thanh toán (mock)
+              Phương thức thanh toán
             </label>
             <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-              <option>Thẻ ngân hàng</option>
-              <option>Ví điện tử</option>
-              <option>Tiền mặt tại quầy</option>
+              <option>VNPay (Internet Banking / Thẻ)</option>
             </select>
           </div>
 
@@ -97,17 +125,15 @@ export default function Payment() {
             className="w-full inline-flex items-center justify-center px-4 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700"
           >
             <CreditCard className="w-5 h-5 mr-2" />
-            Thanh toán (mock)
+            Thanh toán qua VNPay
           </button>
 
           <p className="text-xs text-gray-400 text-center">
-            Đây chỉ là màn hình mô phỏng thanh toán cho đồ án. Khi tích hợp
-            backend, hãy thay bằng cổng thanh toán thực tế (VNPay, MoMo,...).
+            Khi bấm &quot;Thanh toán qua VNPay&quot;, bạn sẽ được chuyển sang
+            cổng thanh toán VNPay để hoàn tất giao dịch.
           </p>
         </div>
       </div>
     </div>
   )
 }
-
-
