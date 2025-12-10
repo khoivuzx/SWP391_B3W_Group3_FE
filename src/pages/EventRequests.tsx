@@ -10,7 +10,7 @@ type EventRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 type EventRequest = {
   requestId: number
   requesterId: number
-  requesterName: string
+  requesterName?: string
   title: string
   description: string
   preferredStartTime: string
@@ -53,6 +53,8 @@ export default function EventRequests() {
   const isStaff = user?.role === 'STAFF'
   const isOrganizer = user?.role === 'ORGANIZER'
   const [requests, setRequests] = useState<EventRequest[]>([])
+  const [pendingRequests, setPendingRequests] = useState<EventRequest[]>([])
+  const [processedRequests, setProcessedRequests] = useState<EventRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<EventRequest | null>(null)
@@ -83,8 +85,23 @@ export default function EventRequests() {
       if (response.ok) {
         const data = await response.json()
         console.log('Event requests data:', data)
-        console.log('First request:', data[0])
-        setRequests(data)
+        
+        // Handle new API structure: { pending: [], approved: [], rejected: [] }
+        if (data.pending || data.approved || data.rejected) {
+          const pending = Array.isArray(data.pending) ? data.pending : []
+          const processed = [
+            ...(Array.isArray(data.approved) ? data.approved : []),
+            ...(Array.isArray(data.rejected) ? data.rejected : [])
+          ]
+          setPendingRequests(pending)
+          setProcessedRequests(processed)
+          setRequests([...pending, ...processed])
+        } else if (Array.isArray(data)) {
+          // Handle legacy flat array structure
+          setRequests(data)
+          setPendingRequests(data.filter(req => req.status === 'PENDING'))
+          setProcessedRequests(data.filter(req => req.status === 'APPROVED' || req.status === 'REJECTED'))
+        }
       } else {
         throw new Error('Failed to fetch event requests')
       }
@@ -180,12 +197,12 @@ export default function EventRequests() {
   // Filter requests based on active tab (only for staff)
   const filteredRequests = isStaff 
     ? activeTab === 'pending'
-      ? requests.filter(req => req.status === 'PENDING')
-      : requests.filter(req => req.status === 'APPROVED' || req.status === 'REJECTED')
+      ? pendingRequests
+      : processedRequests
     : requests
 
-  const pendingCount = requests.filter(req => req.status === 'PENDING').length
-  const processedCount = requests.filter(req => req.status === 'APPROVED' || req.status === 'REJECTED').length
+  const pendingCount = pendingRequests.length
+  const processedCount = processedRequests.length
 
   return (
     <div>
@@ -324,7 +341,7 @@ export default function EventRequests() {
                   </td>
                   {isStaff && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {req.requesterName}
+                      {req.requesterName || 'N/A'}
                     </td>
                   )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

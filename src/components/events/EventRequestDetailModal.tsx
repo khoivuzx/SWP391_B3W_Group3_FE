@@ -11,7 +11,7 @@ interface EventRequestDetailModalProps {
   request: {
     requestId: number
     requesterId: number
-    requesterName: string
+    requesterName?: string
     title: string
     description: string
     preferredStartTime: string
@@ -112,7 +112,7 @@ export function EventRequestDetailModal({
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Người đề xuất</p>
-                <p className="font-medium text-gray-900">{request.requesterName}</p>
+                <p className="font-medium text-gray-900">{request.requesterName || 'Không có thông tin'}</p>
               </div>
             </div>
 

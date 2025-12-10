@@ -37,7 +37,14 @@ export default function Events() {
 
       if (response.ok) {
         const data = await response.json()
-        setEvents(data)
+        // Handle both array (legacy) and object structure (new API)
+        const eventsArray = Array.isArray(data)
+          ? data
+          : [
+              ...(Array.isArray(data.openEvents) ? data.openEvents : []),
+              ...(Array.isArray(data.closedEvents) ? data.closedEvents : [])
+            ]
+        setEvents(eventsArray)
       } else {
         throw new Error('Failed to fetch events')
       }
@@ -193,7 +200,7 @@ export default function Events() {
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <MapPin className="w-4 h-4 mr-2" />
-                  {event.location || 'Chưa xác định'}
+                  {event.venueLocation || event.location || 'Chưa xác định'}
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <Users className="w-4 h-4 mr-2" />

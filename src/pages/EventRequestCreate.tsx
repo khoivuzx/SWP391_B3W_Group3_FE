@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Send, Upload, X } from 'lucide-react'
+import { ArrowLeft, Send } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { uploadEventBanner, validateImageFile } from '../utils/imageUpload'
 
 export default function EventRequestCreate() {
   const navigate = useNavigate()
@@ -20,100 +19,83 @@ export default function EventRequestCreate() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({
+    title: false,
+    description: false,
+    reason: false,
+    expectedParticipants: false
+  })
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
-  }
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const validation = validateImageFile(file)
-    if (!validation.valid) {
-      setError(validation.error || 'Invalid file')
-      return
+    // Check for empty required fields
+    if (['title', 'description', 'reason'].includes(name)) {
+      setFieldErrors(prev => ({ ...prev, [name]: value.trim() === '' }))
     }
 
-    setSelectedImage(file)
-    setError(null)
-
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string)
+    // Real-time validation for expectedParticipants
+    if (name === 'expectedParticipants' && value) {
+      const participants = parseInt(value)
+      if (isNaN(participants) || participants < 10) {
+        setValidationError('Số lượng phải tối thiểu là 10')
+        setFieldErrors(prev => ({ ...prev, expectedParticipants: true }))
+      } else if (participants % 10 !== 0) {
+        setValidationError('Số lượng phải là bội số của 10 (10, 20, 30, ...)')
+        setFieldErrors(prev => ({ ...prev, expectedParticipants: true }))
+      } else {
+        setValidationError(null)
+        setFieldErrors(prev => ({ ...prev, expectedParticipants: false }))
+      }
+    } else if (name === 'expectedParticipants' && !value) {
+      setValidationError(null)
+      setFieldErrors(prev => ({ ...prev, expectedParticipants: false }))
     }
-    reader.readAsDataURL(file)
   }
 
-  const handleRemoveImage = () => {
-    setSelectedImage(null)
-    setImagePreview(null)
-    setError(null)
-  }
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-  }
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-
-    const file = e.dataTransfer.files?.[0]
-    if (!file) return
-
-    const validation = validateImageFile(file)
-    if (!validation.valid) {
-      setError(validation.error || 'Invalid file')
-      return
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    if (['title', 'description', 'reason'].includes(name)) {
+      setFieldErrors(prev => ({ ...prev, [name]: value.trim() === '' }))
     }
-
-    setSelectedImage(file)
-    setError(null)
-
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string)
-    }
-    reader.readAsDataURL(file)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
     setError(null)
 
-    try {
-      // Upload image first if selected
-      let bannerUrl = formData.bannerUrl
-      if (selectedImage) {
-        bannerUrl = await uploadEventBanner(selectedImage)
-      }
+    // Validate that expectedParticipants is a multiple of 10
+    const participants = parseInt(formData.expectedParticipants)
+    if (formData.expectedParticipants && (isNaN(participants) || participants < 10 || participants % 10 !== 0)) {
+      setError('Số lượng người tham gia dự kiến phải là bội số của 10 (10, 20, 30, ...)')
+      return
+    }
 
+    setIsSubmitting(true)
+
+    try {
       // Send event request to backend
       const token = localStorage.getItem('token')
+
+      // Convert local datetime to ISO 8601 format: YYYY-MM-DDTHH:mm:ss
+      const formatDateTimeLocal = (dateTimeStr: string) => {
+        if (!dateTimeStr) return null
+        // datetime-local gives us YYYY-MM-DDTHH:mm format
+        // Convert to ISO 8601: YYYY-MM-DDTHH:mm:ss
+        return dateTimeStr + ':00'
+      }
 
       const requestBody = {
         title: formData.title,
         description: formData.description,
         reason: formData.reason,
-        preferredStartTime: formData.preferredStart ? new Date(formData.preferredStart).toISOString() : null,
-        preferredEndTime: formData.preferredEnd ? new Date(formData.preferredEnd).toISOString() : null,
+        preferredStartTime: formData.preferredStart ? formatDateTimeLocal(formData.preferredStart) : null,
+        preferredEndTime: formData.preferredEnd ? formatDateTimeLocal(formData.preferredEnd) : null,
         expectedParticipants: parseInt(formData.expectedParticipants) || 0,
-        bannerUrl,
       }
 
       console.log('Submitting event request:', requestBody)
@@ -166,9 +148,17 @@ export default function EventRequestCreate() {
               name="title"
               value={formData.title}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-blue-500 ${
+                fieldErrors.title
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
             />
+            {fieldErrors.title && (
+              <p className="mt-1 text-sm text-red-600">Vui lòng nhập tiêu đề sự kiện</p>
+            )}
           </div>
 
           <div>
@@ -179,10 +169,18 @@ export default function EventRequestCreate() {
               name="description"
               value={formData.description}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-blue-500 ${
+                fieldErrors.description
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
             />
+            {fieldErrors.description && (
+              <p className="mt-1 text-sm text-red-600">Vui lòng nhập mô tả chi tiết</p>
+            )}
           </div>
 
           <div>
@@ -193,10 +191,18 @@ export default function EventRequestCreate() {
               name="reason"
               value={formData.reason}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-blue-500 ${
+                fieldErrors.reason
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
             />
+            {fieldErrors.reason && (
+              <p className="mt-1 text-sm text-red-600">Vui lòng nhập lý do / mục tiêu tổ chức</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -228,63 +234,24 @@ export default function EventRequestCreate() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Banner sự kiện
-            </label>
-            
-            {!imagePreview ? (
-              <div 
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  isDragging 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-blue-400'
-                }`}
-              >
-                <input
-                  type="file"
-                  id="banner-upload"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                />
-                <label htmlFor="banner-upload" className="cursor-pointer">
-                  <Upload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600 mb-2">Kéo thả ảnh hoặc click để chọn</p>
-                  <p className="text-sm text-gray-500">PNG, JPG, GIF tối đa 5MB</p>
-                </label>
-              </div>
-            ) : (
-              <div className="relative">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-full h-64 object-cover rounded-lg"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Số lượng người tham gia dự kiến
+              Số lượng người tham gia dự kiến (Bội số của 10: 10, 20, 30...)
             </label>
             <input
               type="number"
               name="expectedParticipants"
               value={formData.expectedParticipants}
               onChange={handleChange}
-              min="1"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              min="10"
+              step="10"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-blue-500 ${
+                validationError
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
             />
+            {validationError && (
+              <p className="mt-1 text-sm text-red-600">{validationError}</p>
+            )}
           </div>
 
           {error && (

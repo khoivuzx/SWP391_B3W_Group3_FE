@@ -50,11 +50,11 @@ export function ProcessRequestModal({
     try {
       const token = localStorage.getItem('token')
       
-      // Format the datetime for the API - remove milliseconds and ensure ISO format
+      // Format datetime for backend API: ISO 8601 format (YYYY-MM-DDTHH:mm:ss)
       const formatDateTime = (dateStr: string) => {
-        const date = new Date(dateStr)
-        // Format as: YYYY-MM-DDTHH:mm:ss
-        return date.toISOString().slice(0, 19)
+        // Extract datetime: YYYY-MM-DDTHH:mm:ss
+        // Remove 'Z' if present and take first 19 characters
+        return dateStr.replace('Z', '').slice(0, 19)
       }
       
       const startTime = formatDateTime(request.preferredStartTime)

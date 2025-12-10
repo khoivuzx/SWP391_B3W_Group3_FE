@@ -10,7 +10,12 @@ export interface EventListItem {
   maxSeats: number
   status: string // OPEN / CLOSED / ...
   bannerUrl?: string | null
-  location?: string // Optional location field
+  location?: string // Optional location field (for backward compatibility)
+  areaId?: number
+  areaName?: string
+  floor?: string
+  venueName?: string
+  venueLocation?: string
 }
 
 // Chi tiết một sự kiện

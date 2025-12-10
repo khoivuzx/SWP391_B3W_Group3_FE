@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Calendar, Users, Clock } from 'lucide-react'
-import { format } from 'date-fns'
+import { Calendar, MapPin, Clock } from 'lucide-react'
+import { format, isSameDay, isBefore, isAfter, startOfDay } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import type { EventListItem, EventDetail } from '../types/event'
 import { EventDetailModal } from '../components/events/EventDetailModal'
@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [events, setEvents] = useState<EventListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming')
 
   // Event detail modal state
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -50,8 +51,15 @@ export default function Dashboard() {
           throw new Error(`HTTP ${res.status}`)
         }
 
-        const data: EventListItem[] = await res.json()
-        setEvents(data)
+        const data = await res.json()
+        // Handle API response structure: { closedEvents: [], openEvents: [] }
+        const eventsArray = Array.isArray(data) 
+          ? data 
+          : [
+              ...(Array.isArray(data.openEvents) ? data.openEvents : []),
+              ...(Array.isArray(data.closedEvents) ? data.closedEvents : [])
+            ]
+        setEvents(eventsArray)
       } catch (err: any) {
         console.error('Lỗi load events:', err)
         setError(err.message ?? 'Không thể tải danh sách sự kiện')
@@ -104,137 +112,209 @@ export default function Dashboard() {
     setDetailError(null)
   }
 
-  // ===== Calculate upcoming events =====
-  const upcomingEvents = events
-    .filter((e) => e.status === 'OPEN' || e.status === 'Upcoming')
-    .sort(
-      (a, b) =>
-        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-    )
-    .slice(0, 3)
+  // ===== Calculate upcoming and past events =====
+  const today = startOfDay(new Date())
+  
+  const upcomingEvents = (Array.isArray(events) ? events : [])
+    .filter((e) => {
+      const eventDate = new Date(e.startTime)
+      return isAfter(eventDate, today) || isSameDay(eventDate, today)
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.startTime)
+      const dateB = new Date(b.startTime)
+      // Check if today event exists
+      const aToday = isSameDay(dateA, today)
+      const bToday = isSameDay(dateB, today)
+      
+      if (aToday && !bToday) return -1
+      if (!aToday && bToday) return 1
+      
+      // Sort by closest date
+      return dateA.getTime() - dateB.getTime()
+    })
+
+  const pastEvents = (Array.isArray(events) ? events : [])
+    .filter((e) => {
+      const eventDate = new Date(e.startTime)
+      return isBefore(eventDate, today)
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.startTime)
+      const dateB = new Date(b.startTime)
+      return dateB.getTime() - dateA.getTime() // Most recent first
+    })
 
   // ===== JSX =====
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Chào mừng, {user?.fullName}!
+        <h1 className="text-4xl font-bold text-gray-900">
+          Sự kiện tại Thành phố Hồ Chí Minh
         </h1>
-        <p className="text-gray-600 mt-2">
-          Vai trò: <span className="font-medium">{user?.role}</span>
-        </p>
       </div>
 
       {loading && <p className="text-gray-500 mb-4">Đang tải dữ liệu sự kiện...</p>}
       {error && <p className="text-red-500 mb-4">Lỗi: {error}</p>}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Tổng sự kiện</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {events.length}
-              </p>
-            </div>
-            <Calendar className="w-12 h-12 text-blue-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Sự kiện sắp tới</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {upcomingEvents.length}
-              </p>
-            </div>
-            <Clock className="w-12 h-12 text-green-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Tổng số ghế tối đa</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {events.reduce((sum, e) => sum + e.maxSeats, 0)}
-              </p>
-            </div>
-            <Users className="w-12 h-12 text-purple-500" />
-          </div>
+      {/* Tab Panel */}
+      <div className="mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('upcoming')}
+              className={`py-4 px-1 border-b-2 font-medium text-base transition-colors ${
+                activeTab === 'upcoming'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Sự kiện sắp tới
+            </button>
+            <button
+              onClick={() => setActiveTab('past')}
+              className={`py-4 px-1 border-b-2 font-medium text-base transition-colors ${
+                activeTab === 'past'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Sự kiện đã qua
+            </button>
+          </nav>
         </div>
       </div>
 
-      {/* Upcoming Events */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-900">Sự kiện sắp tới</h2>
-        </div>
-        <div className="p-6">
+      {/* Events Grid */}
+      {activeTab === 'upcoming' ? (
+        <>
           {upcomingEvents.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              Không có sự kiện sắp tới
-            </p>
+            <div className="bg-white rounded-lg shadow p-12 text-center">
+              <p className="text-gray-500 text-lg">Không có sự kiện sắp tới</p>
+            </div>
           ) : (
-            <div className="space-y-4">
-              {upcomingEvents.map((event) => (
-                <button
-                  key={event.eventId}
-                  onClick={() => openEventDetail(event.eventId)}
-                  className="w-full text-left block border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer overflow-hidden"
-                >
-                  <div className="flex items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {upcomingEvents.map((event) => {
+                const eventDate = new Date(event.startTime)
+                const isToday = isSameDay(eventDate, today)
+                
+                return (
+                  <button
+                    key={event.eventId}
+                    onClick={() => openEventDetail(event.eventId)}
+                    className="text-left block rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer bg-white border border-gray-200"
+                  >
                     {/* Banner Image */}
                     {event.bannerUrl ? (
-                      <img
-                        src={event.bannerUrl}
-                        alt={event.title}
-                        className="w-48 h-32 object-cover flex-shrink-0"
-                      />
+                      <div className="relative">
+                        <img
+                          src={event.bannerUrl}
+                          alt={event.title}
+                          className="w-full h-48 object-cover"
+                        />
+                        {isToday && (
+                          <span className="absolute top-3 right-3 px-3 py-1 bg-red-500 text-white text-xs font-bold rounded">
+                            TODAY
+                          </span>
+                        )}
+                      </div>
                     ) : (
-                      <div className="w-48 h-32 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0">
-                        <Calendar className="w-12 h-12 text-blue-400" />
+                      <div className="w-full h-48 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center relative">
+                        <Calendar className="w-16 h-16 text-blue-400" />
+                        {isToday && (
+                          <span className="absolute top-3 right-3 px-3 py-1 bg-red-500 text-white text-xs font-bold rounded">
+                            HÔM NAY
+                          </span>
+                        )}
                       </div>
                     )}
 
                     {/* Content */}
-                    <div className="flex-1 p-4 flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-900 truncate">
-                          {event.title}
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                          {event.description}
-                        </p>
-                        <div className="mt-2 flex items-center text-sm text-gray-600">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {format(new Date(event.startTime), 'dd/MM/yyyy HH:mm', {
-                            locale: vi,
-                          })}
-                        </div>
-                      </div>
+                    <div className="p-4">
+                      {/* Title */}
+                      <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 min-h-[56px]">
+                        {event.title}
+                      </h3>
 
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium ml-4 flex-shrink-0">
-                        {event.status}
-                      </span>
+                      {/* Date & Time */}
+                      <p className="text-sm text-gray-600 mb-1">
+                        {format(eventDate, 'EEEE • h:mm a', { locale: vi })}
+                      </p>
+
+                      {/* Location */}
+                      <p className="text-sm text-gray-600 line-clamp-1">
+                        {event.venueLocation || event.location || 'Trực tuyến'}
+                      </p>
                     </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {pastEvents.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-12 text-center">
+              <p className="text-gray-500 text-lg">Chưa có sự kiện đã diễn ra</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {pastEvents.map((event) => (
+                <button
+                  key={event.eventId}
+                  onClick={() => openEventDetail(event.eventId)}
+                  className="text-left block rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer bg-white border border-gray-200 opacity-75"
+                >
+                  {/* Banner Image */}
+                  {event.bannerUrl ? (
+                    <img
+                      src={event.bannerUrl}
+                      alt={event.title}
+                      className="w-full h-48 object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                      <Calendar className="w-16 h-16 text-gray-400" />
+                    </div>
+                  )}
+
+                  {/* Content */}
+                  <div className="p-4">
+                    {/* Status Badge */}
+                    <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded mb-3">
+                      Đã kết thúc
+                    </span>
+
+                    {/* Title */}
+                    <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 min-h-[56px]">
+                      {event.title}
+                    </h3>
+
+                    {/* Date & Time */}
+                    <p className="text-sm text-gray-600 mb-1">
+                      {format(new Date(event.startTime), 'EEEE • h:mm a', { locale: vi })}
+                    </p>
+
+                    {/* Location */}
+                    <p className="text-sm text-gray-600 line-clamp-1">
+                      {event.venueLocation || event.location || 'Trực tuyến'}
+                    </p>
                   </div>
                 </button>
               ))}
             </div>
           )}
+        </>
+      )}
 
-          <div className="mt-6">
-            <Link
-              to="/events"
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              Xem tất cả sự kiện →
-            </Link>
-          </div>
-        </div>
+      <div className="mt-8 text-center">
+        <Link
+          to="/events"
+          className="inline-block text-orange-600 hover:text-orange-700 font-medium"
+        >
+          Xem tất cả sự kiện →
+        </Link>
       </div>
 
       {/* Event Detail Modal */}
@@ -249,4 +329,3 @@ export default function Dashboard() {
     </div>
   )
 }
-
