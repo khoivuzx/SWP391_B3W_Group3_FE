@@ -37,14 +37,30 @@ export function EventDetailModal({
   onEdit,
 }: EventDetailModalProps) {
   const navigate = useNavigate()
+
+  // 1 loại vé đang chọn (VIP / STANDARD / ...)
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
-  const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null)
+  // Nhiều ghế đã chọn
+  const [selectedSeats, setSelectedSeats] = useState<Seat[]>([])
   const [allSeats, setAllSeats] = useState<Seat[]>([])
   const [vipTotal, setVipTotal] = useState<number>(0)
   const [standardTotal, setStandardTotal] = useState<number>(0)
   const [loadingSeats, setLoadingSeats] = useState(false)
 
-  // Fetch seats when event detail loads
+  // ===== HELPER: check trạng thái ghế =====
+  const isSeatAvailableForSelect = (seat: Seat) => {
+    // BE đang trả về status = 'AVAILABLE' | 'BOOKED' | 'CHECKED_IN' | 'PENDING'
+    // => chỉ cho click khi là AVAILABLE
+    return seat.status === 'AVAILABLE'
+  }
+
+  const isSeatAvailableForCount = (seat: Seat, isVIP: boolean) => {
+    const seatIsVIP = seat.seatType === 'VIP'
+    // chỉ tính ghế AVAILABLE là còn lại
+    return seatIsVIP === isVIP && seat.status === 'AVAILABLE'
+  }
+
+  // ========== LOAD SEAT LAYOUT ==========
   useEffect(() => {
     const fetchSeats = async () => {
       if (!event || !event.areaId || !token) return
@@ -52,13 +68,16 @@ export function EventDetailModal({
       setLoadingSeats(true)
 
       try {
-        // Fetch all seats for display
-        const seatsRes = await fetch(`http://localhost:3000/api/seats?areaId=${event.areaId}&eventId=${event.eventId}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+        // Tất cả seat theo event (để vẽ grid)
+        const seatsRes = await fetch(
+          `http://localhost:3000/api/seats?areaId=${event.areaId}&eventId=${event.eventId}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
           },
-        })
+        )
 
         if (seatsRes.ok) {
           const seatsData = await seatsRes.json()
@@ -66,20 +85,26 @@ export function EventDetailModal({
           setAllSeats(seatsData.seats || [])
         }
 
-        // Fetch VIP and STANDARD totals separately
+        // Tổng VIP / STANDARD
         const [vipRes, standardRes] = await Promise.all([
-          fetch(`http://localhost:3000/api/seats?areaId=${event.areaId}&eventId=${event.eventId}&seatType=VIP`, {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
+          fetch(
+            `http://localhost:3000/api/seats?areaId=${event.areaId}&eventId=${event.eventId}&seatType=VIP`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
             },
-          }),
-          fetch(`http://localhost:3000/api/seats?areaId=${event.areaId}&eventId=${event.eventId}&seatType=STANDARD`, {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
+          ),
+          fetch(
+            `http://localhost:3000/api/seats?areaId=${event.areaId}&eventId=${event.eventId}&seatType=STANDARD`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
             },
-          }),
+          ),
         ])
 
         if (vipRes.ok) {
@@ -105,27 +130,95 @@ export function EventDetailModal({
     }
   }, [event, loading, token])
 
-  const confirmSeat = () => {
-    if (!selectedSeat || !selectedTicket || !event) return
+  // ========== HANDLE CHỌN LOẠI VÉ ==========
+  const handleSelectTicket = (ticket: Ticket) => {
+    // Khi đổi loại vé => reset ghế đã chọn
+    setSelectedTicket(ticket)
+    setSelectedSeats([])
+  }
 
-    // Pass required state to Payment page
+  // ========== HANDLE CHỌN / BỎ CHỌN GHẾ ==========
+  const handleSeatSelect = (seat: Seat) => {
+    if (!event) return
+
+    // ❌ Không cho chọn ghế đang BOOKED / CHECKED_IN / PENDING
+    if (!isSeatAvailableForSelect(seat)) {
+      if (seat.status === 'PENDING') {
+        // Optional: báo cho user biết ghế đang giữ chỗ
+        // (nếu không thích alert thì bỏ đoạn này)
+        alert(
+          `Ghế ${seat.seatCode} đang được giữ chỗ trong quá trình thanh toán. Vui lòng chọn ghế khác.`,
+        )
+      }
+      return
+    }
+
+    // Nếu chưa chọn loại vé -> auto map theo seatType
+    let ticket = selectedTicket
+    if (!ticket && event.tickets && event.tickets.length > 0) {
+      const isVIPSeat = seat.seatType === 'VIP'
+      const foundTicket = event.tickets.find((t) => {
+        const isVIPTicket = t.name.toUpperCase().includes('VIP')
+        return isVIPTicket === isVIPSeat
+      })
+
+      if (foundTicket) {
+        ticket = foundTicket
+        setSelectedTicket(foundTicket)
+      } else {
+        // Không có loại vé match -> không cho chọn
+        return
+      }
+    }
+
+    if (!ticket) return
+
+    const isVIPSeat = seat.seatType === 'VIP'
+    const isVIPTicket = ticket.name.toUpperCase().includes('VIP')
+
+    // Chỉ cho chọn ghế cùng loại với ticket
+    if (isVIPSeat !== isVIPTicket) {
+      return
+    }
+
+    setSelectedSeats((prev) => {
+      const exists = prev.some((s) => s.seatId === seat.seatId)
+      if (exists) {
+        // Bỏ chọn nếu đã được chọn
+        return prev.filter((s) => s.seatId !== seat.seatId)
+      }
+      // Thêm mới
+      return [...prev, seat]
+    })
+  }
+
+  // ========== CONFIRM & ĐI TỚI TRANG PAYMENT ==========
+  const confirmSeats = () => {
+    if (!event || !selectedTicket || selectedSeats.length === 0) return
+
+    const seatIds = selectedSeats.map((s) => s.seatId)
+    const seatCodes = selectedSeats.map((s) => s.seatCode)
+    const quantity = selectedSeats.length
+    const totalAmount = selectedTicket.price * quantity
+
     navigate('/dashboard/payment', {
       state: {
         eventId: event.eventId,
         categoryTicketId: selectedTicket.categoryTicketId,
-        seatId: selectedSeat.seatId,
+        seatIds, // array number => FE Payment sẽ build query seatIds=1,2,3 cho BE
         eventTitle: event.title,
         ticketName: selectedTicket.name,
-        seatCode: selectedSeat.seatCode,
-        rowNo: selectedSeat.rowNo,
-        price: selectedTicket.price,
+        seatCodes, // để hiển thị ở màn Payment
+        pricePerTicket: selectedTicket.price,
+        quantity,
+        totalAmount,
       },
     })
   }
 
   const handleClose = () => {
     setSelectedTicket(null)
-    setSelectedSeat(null)
+    setSelectedSeats([])
     setAllSeats([])
     setVipTotal(0)
     setStandardTotal(0)
@@ -133,6 +226,17 @@ export function EventDetailModal({
   }
 
   if (!isOpen) return null
+
+  // Tính tổng tiền hiển thị ở footer
+  const totalAmount =
+    selectedTicket && selectedSeats.length > 0
+      ? selectedTicket.price * selectedSeats.length
+      : 0
+
+  const selectedSeatCodesText =
+    selectedSeats.length > 0
+      ? selectedSeats.map((s) => s.seatCode).join(', ')
+      : ''
 
   return (
     <>
@@ -285,24 +389,39 @@ export function EventDetailModal({
                 {/* Tickets Info */}
                 {event.tickets && event.tickets.length > 0 && (
                   <div className="border-t pt-6 mb-6">
-                    <h3 className="text-lg font-semibold mb-4">
-                      Giá vé
-                    </h3>
+                    <h3 className="text-lg font-semibold mb-4">Giá vé</h3>
                     <div className="space-y-2">
                       {event.tickets.map((ticket) => {
                         const isVIP = ticket.name.toUpperCase().includes('VIP')
                         const total = isVIP ? vipTotal : standardTotal
-                        const availableCount = allSeats.filter(
-                          (s: Seat) => {
-                            const seatIsVIP = s.seatType === 'VIP'
-                            return seatIsVIP === isVIP && (s.status === 'AVAILABLE' || s.status === 'ACTIVE')
-                          }
+
+                        // chỉ tính ghế AVAILABLE là còn lại
+                        const availableCount = allSeats.filter((s: Seat) =>
+                          isSeatAvailableForCount(s, isVIP),
                         ).length
-                        
+
+                        const isSelectedTicket =
+                          selectedTicket?.categoryTicketId ===
+                          ticket.categoryTicketId
+
                         return (
                           <div
                             key={ticket.categoryTicketId}
-                            className="flex items-center justify-between py-2"
+                            onClick={() =>
+                              handleSelectTicket({
+                                categoryTicketId: ticket.categoryTicketId,
+                                name: ticket.name,
+                                price: ticket.price,
+                                maxQuantity: ticket.maxQuantity,
+                                status: ticket.status,
+                              })
+                            }
+                            className={`flex items-center justify-between py-2 px-3 rounded-lg border cursor-pointer transition
+                              ${
+                                isSelectedTicket
+                                  ? 'border-blue-600 bg-blue-50'
+                                  : 'border-transparent hover:bg-gray-50'
+                              }`}
                           >
                             <div>
                               <p className="font-medium">{ticket.name}</p>
@@ -317,38 +436,25 @@ export function EventDetailModal({
                         )
                       })}
                     </div>
+
+                    {/* Legend nhỏ cho PENDING nếu muốn */}
+                    <p className="mt-3 text-xs text-gray-500">
+                      Ghế màu x (PENDING) là ghế đang được giữ chỗ trong quá
+                      trình thanh toán, bạn không thể chọn các ghế này.
+                    </p>
                   </div>
                 )}
 
                 {/* All Seats Display */}
                 {event.areaId && (
                   <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold mb-4">
-                      Chọn ghế
-                    </h3>
-                    
+                    <h3 className="text-lg font-semibold mb-4">Chọn ghế</h3>
+
                     <SeatGrid
                       seats={allSeats}
                       loading={loadingSeats}
-                      selectedSeat={selectedSeat}
-                      onSeatSelect={(seat) => {
-                        setSelectedSeat(seat)
-                        // Auto-select ticket based on seat type
-                        const ticket = event.tickets?.find(t => {
-                          const isVIPTicket = t.name.toUpperCase().includes('VIP')
-                          const isVIPSeat = seat?.seatType === 'VIP'
-                          return isVIPTicket === isVIPSeat
-                        })
-                        if (ticket) {
-                          setSelectedTicket({
-                            categoryTicketId: ticket.categoryTicketId,
-                            name: ticket.name,
-                            price: ticket.price,
-                            maxQuantity: ticket.maxQuantity,
-                            status: ticket.status,
-                          })
-                        }
-                      }}
+                      selectedSeats={selectedSeats}
+                      onSeatSelect={(seat) => seat && handleSeatSelect(seat)}
                     />
                   </div>
                 )}
@@ -356,36 +462,40 @@ export function EventDetailModal({
                 {/* Action Buttons */}
                 <div className="border-t mt-6 pt-6 flex justify-between items-center">
                   <div>
-                    {selectedTicket && selectedSeat && (
+                    {selectedTicket && selectedSeats.length > 0 && (
                       <div className="text-left">
                         <p className="text-sm text-gray-600">Tổng tiền</p>
                         <p className="text-2xl font-bold text-blue-600">
-                          {selectedTicket.price.toLocaleString('vi-VN')} đ
+                          {totalAmount.toLocaleString('vi-VN')} đ
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {selectedTicket.name} - Ghế {selectedSeat.seatCode}
+                          {selectedTicket.name} - Ghế:{' '}
+                          {selectedSeatCodesText || 'Chưa chọn'}
+                          {' · '}Số lượng: {selectedSeats.length}
                         </p>
                       </div>
                     )}
                   </div>
                   <div className="flex gap-3">
-                    {userRole === 'ORGANIZER' && event.status === 'APPROVED' && onEdit && (
-                      <button
-                        onClick={onEdit}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        Cập nhật thông tin
-                      </button>
-                    )}
+                    {userRole === 'ORGANIZER' &&
+                      event.status === 'APPROVED' &&
+                      onEdit && (
+                        <button
+                          onClick={onEdit}
+                          className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          Cập nhật thông tin
+                        </button>
+                      )}
                     <button
                       onClick={handleClose}
                       className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       Đóng
                     </button>
-                    {selectedTicket && selectedSeat && (
+                    {selectedTicket && selectedSeats.length > 0 && (
                       <button
-                        onClick={confirmSeat}
+                        onClick={confirmSeats}
                         className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                       >
                         Xác nhận đặt ghế
