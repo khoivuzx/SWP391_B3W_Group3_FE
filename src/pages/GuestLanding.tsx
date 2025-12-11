@@ -43,6 +43,7 @@ export default function GuestLanding() {
   const [highlightedEvents, setHighlightedEvents] = useState<any[]>([])
   const [loadingEvents, setLoadingEvents] = useState(true)
   const [counters, setCounters] = useState({ events: 0, students: 0, organizers: 0 })
+  const [targetStats, setTargetStats] = useState({ events: 0, students: 0, organizers: 0 })
   const [hasAnimated, setHasAnimated] = useState(false)
   const statsRef = useRef<HTMLElement>(null)
   const eventsScrollRef = useRef<HTMLDivElement>(null)
@@ -76,7 +77,33 @@ export default function GuestLanding() {
       }
     }
 
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/events/stats')
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch stats')
+        }
+        
+        const data = await response.json()
+        
+        // Tính tổng số người tham gia từ totalRegistered và totalCheckedIn
+        const totalParticipants = (data.totalRegistered || 0) + (data.totalCheckedIn || 0)
+        
+        setTargetStats({
+          events: data.eventId || 0,
+          students: totalParticipants,
+          organizers: 35 // Giữ giá trị mặc định vì API không có
+        })
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+        // Giữ giá trị mặc định nếu lỗi
+        setTargetStats({ events: 250, students: 1000, organizers: 35 })
+      }
+    }
+
     fetchEvents()
+    fetchStats()
   }, [])
 
   useEffect(() => {
@@ -101,7 +128,6 @@ export default function GuestLanding() {
 
   const animateCounters = () => {
     const duration = 2000 // 2 seconds
-    const targetValues = { events: 250, students: 1000, organizers: 35 }
     const steps = 60
     const stepDuration = duration / steps
 
@@ -112,14 +138,14 @@ export default function GuestLanding() {
       const progress = currentStep / steps
 
       setCounters({
-        events: Math.floor(targetValues.events * progress),
-        students: Math.floor(targetValues.students * progress),
-        organizers: Math.floor(targetValues.organizers * progress)
+        events: Math.floor(targetStats.events * progress),
+        students: Math.floor(targetStats.students * progress),
+        organizers: Math.floor(targetStats.organizers * progress)
       })
 
       if (currentStep >= steps) {
         clearInterval(interval)
-        setCounters(targetValues)
+        setCounters(targetStats)
       }
     }, stepDuration)
   }

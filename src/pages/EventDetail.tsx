@@ -115,7 +115,7 @@
  */
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Calendar, Users, Clock, MapPin, ArrowLeft, Edit, ShoppingCart } from 'lucide-react'
+import { Calendar, Users, Clock, MapPin, ArrowLeft, Edit, ShoppingCart, CheckCircle, BarChart3 } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import type { EventDetail } from '../types/event'
@@ -153,6 +153,13 @@ export default function EventDetail() {
   const [vipTotal, setVipTotal] = useState<number>(0) // Booked VIP count
   const [standardTotal, setStandardTotal] = useState<number>(0) // Booked standard count
   const [loadingSeats, setLoadingSeats] = useState(false)
+  
+  // Stats for this specific event
+  const [eventStats, setEventStats] = useState({
+    totalRegistered: 0,
+    totalCheckedIn: 0,
+    checkInRate: '0.00%'
+  })
   
   // Currently selected ticket type (VIP or STANDARD)
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
@@ -200,6 +207,35 @@ export default function EventDetail() {
     }
 
     fetchEventDetail()
+  }, [id, token])
+  
+  // Fetch stats for this event
+  useEffect(() => {
+    const fetchEventStats = async () => {
+      if (!token || !id) return
+
+      try {
+        const res = await fetch(`/api/events/stats?eventId=${id}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          setEventStats({
+            totalRegistered: data.totalRegistered || 0,
+            totalCheckedIn: data.totalCheckedIn || 0,
+            checkInRate: data.checkInRate || '0.00%'
+          })
+        }
+      } catch (err) {
+        console.error('Error loading event stats:', err)
+      }
+    }
+
+    fetchEventStats()
   }, [id, token])
   
   // Fetch seats when event detail loads
@@ -572,6 +608,47 @@ export default function EventDetail() {
                 alt={event.title}
                 className="w-full h-96 object-cover"
               />
+            </div>
+          )}
+
+          {/* Event Stats - Only for Organizers */}
+          {isOrganizer && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-medium">Tổng đăng ký</p>
+                    <p className="text-3xl font-bold text-blue-600 mt-1">
+                      {eventStats.totalRegistered}
+                    </p>
+                  </div>
+                  <Users className="w-10 h-10 text-blue-500 opacity-20" />
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-medium">Đã check-in</p>
+                    <p className="text-3xl font-bold text-green-600 mt-1">
+                      {eventStats.totalCheckedIn}
+                    </p>
+                  </div>
+                  <CheckCircle className="w-10 h-10 text-green-500 opacity-20" />
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-orange-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 font-medium">Tỷ lệ check-in</p>
+                    <p className="text-3xl font-bold text-orange-600 mt-1">
+                      {eventStats.checkInRate}
+                    </p>
+                  </div>
+                  <BarChart3 className="w-10 h-10 text-orange-500 opacity-20" />
+                </div>
+              </div>
             </div>
           )}
 
