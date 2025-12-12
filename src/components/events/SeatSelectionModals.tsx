@@ -19,7 +19,7 @@ export function ModeSelectionModal({ onFastChoose, onManualChoose }: ModeSelecti
           onClick={onFastChoose}
           className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
         >
-           Chọn nhanh
+          ⚡ Chọn nhanh
         </button>
         <p className="text-xs text-gray-600 text-center">
           Hệ thống tự động chọn ghế ngồi cạnh nhau, gần sân khấu
@@ -29,7 +29,7 @@ export function ModeSelectionModal({ onFastChoose, onManualChoose }: ModeSelecti
           onClick={onManualChoose}
           className="w-full py-3 bg-white border-2 border-orange-500 text-orange-600 rounded-lg font-semibold hover:bg-orange-50 transition-all"
         >
-           Tự chọn ghế
+          🪑 Tự chọn ghế
         </button>
         <p className="text-xs text-gray-600 text-center">
           Chọn ghế theo ý bạn trên sơ đồ chỗ ngồi
@@ -57,7 +57,7 @@ export function QuantityModal({
   return (
     <div className="mb-6 p-4 bg-green-50 rounded-xl border-2 border-green-200">
       <h3 className="text-lg font-bold text-gray-900 mb-4">
-        {selectionMode === 'fast' ? 'Chọn số lượng ghế' : 'Chọn số lượng ghế'}
+        {selectionMode === 'fast' ? '⚡ Chọn số lượng ghế' : '🪑 Chọn số lượng ghế'}
       </h3>
       
       <div className="mb-4">
@@ -105,7 +105,7 @@ export function ReservationTimer({ remainingTime }: ReservationTimerProps) {
     <div className="mb-4 p-3 bg-yellow-50 rounded-lg border-2 border-yellow-300">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-yellow-800">
-           Ghế đã được giữ
+          ⏱️ Ghế đã được giữ
         </p>
         <p className="text-lg font-bold text-yellow-900">
           {Math.floor(remainingTime / 60)}:{String(remainingTime % 60).padStart(2, '0')}
@@ -126,7 +126,7 @@ export function ScatteredWarning({ onDismiss }: ScatteredWarningProps) {
   return (
     <div className="mb-4 p-3 bg-orange-50 rounded-lg border-2 border-orange-300">
       <p className="text-sm font-semibold text-orange-800 mb-1">
-         Ghế không kề nhau
+        ⚠️ Ghế không kề nhau
       </p>
       <p className="text-xs text-orange-700">
         Ghế bạn chọn không liền kề. Bạn vẫn có thể tiếp tục hoặc chọn lại để có ghế ngồi cạnh nhau.

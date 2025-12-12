@@ -25,7 +25,7 @@ export function VIPTicketCard({ ticket, onSelect }: TicketCardProps) {
       className="w-full text-left p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl hover:shadow-lg transition-all"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-lg font-bold text-yellow-700"> VIP</span>
+        <span className="text-lg font-bold text-yellow-700">⭐ VIP</span>
         <span
           className={`px-2 py-1 rounded text-xs font-medium ${
             ticket.status === 'ACTIVE'
@@ -54,7 +54,7 @@ export function StandardTicketCard({ ticket, onSelect }: TicketCardProps) {
       className="w-full text-left p-4 bg-white border-2 border-gray-300 rounded-xl hover:border-orange-400 hover:shadow-lg transition-all"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-lg font-bold text-gray-700"> Standard</span>
+        <span className="text-lg font-bold text-gray-700">🎫 Standard</span>
         <span
           className={`px-2 py-1 rounded text-xs font-medium ${
             ticket.status === 'ACTIVE'

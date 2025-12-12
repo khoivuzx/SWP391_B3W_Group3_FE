@@ -81,16 +81,10 @@ export default function Dashboard() {
 
   // ===== Phân loại sự kiện theo trạng thái =====
   const today = startOfDay(new Date())
-  const now = new Date()
 
-  // Sự kiện đang mở: status = OPEN AND endTime hasn't passed yet
+  // Sự kiện đang mở: status = OPEN
   const openEvents = (Array.isArray(events) ? events : [])
-    .filter((e) => {
-      if (e.status !== 'OPEN') return false
-      // Check if event has ended (endTime is in the past)
-      if (e.endTime && new Date(e.endTime) < now) return false
-      return true
-    })
+    .filter((e) => e.status === 'OPEN')
     .sort((a, b) => {
       const dateA = new Date(a.startTime)
       const dateB = new Date(b.startTime)
@@ -106,15 +100,9 @@ export default function Dashboard() {
       return dateA.getTime() - dateB.getTime()
     })
 
-  // Sự kiện đã kết thúc: status = CLOSED & bannerUrl != null OR endTime has passed
+  // Sự kiện đã kết thúc: status = CLOSED & bannerUrl != null
   const closedEvents = (Array.isArray(events) ? events : [])
-    .filter((e) => {
-      // Event is closed with banner
-      if (e.status === 'CLOSED' && !!e.bannerUrl) return true
-      // OR event's endTime has passed (even if status is still OPEN)
-      if (e.endTime && new Date(e.endTime) < now) return true
-      return false
-    })
+    .filter((e) => e.status === 'CLOSED' && !!e.bannerUrl)
     .sort((a, b) => {
       const dateA = new Date(a.startTime)
       const dateB = new Date(b.startTime)

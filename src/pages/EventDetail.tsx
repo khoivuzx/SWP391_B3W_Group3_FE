@@ -1,19 +1,117 @@
 /**
- * EventDetail - Full page for event details with seat selection
+ * EventDetail Page - Full-page event details with PROFESSIONAL seat selection
+ * Route: /dashboard/events/:id
+ * Replaces: EventDetailModal (modal was too cramped)
  * 
- * Seat selection flow:
- * 1. Pick ticket type (VIP/STANDARD)
- * 2. Choose mode: fast-pick (auto) or manual
- * 3. Enter quantity (1-10 seats)
- * 4. Select seats or let system pick best block
- * 5. Checkout with backend validation
+ * ═══════════════════════════════════════════════════════════════════════
+ * IMPROVED SEAT SELECTION FLOW (Cinema-App Style)
+ * ═══════════════════════════════════════════════════════════════════════
  * 
- * Fast-pick tries to find continuous block in same row, 
- * falls back to best available seats if no block found.
- * Manual mode shows suggestions but lets user click freely.
+ * NEW User Flow (More Natural):
+ * 1. User opens event → sees description & speaker info
+ * 2. "Register now" → choose VIP or STANDARD
+ * 3. User chooses selection method FIRST:
+ *    a) ⚡ Fast Choose - System auto-selects adjacent seats
+ *    b) 🪑 Manual Choose - User picks seats one by one
+ * 4. THEN user selects number of seats (1-10)
+ * 5. System executes selection (fast-pick or enables manual picking)
+ * 6. User can add/remove seats (same ticket type, total ≤ chosen quantity)
+ * 7. User clicks "Đăng ký tham gia" to proceed to payment
  * 
- * Backend re-checks seat availability before payment to prevent
- * race conditions (two users booking same seats).
+ * ═══════════════════════════════════════════════════════════════════════
+ * KEY IMPROVEMENTS
+ * ═══════════════════════════════════════════════════════════════════════
+ * 
+ * ✅ 1. QUANTITY AFTER MODE SELECTION
+ * - More natural flow: Choose HOW (fast/manual) → Choose HOW MANY (quantity)
+ * - Avoids back-and-forth confusion
+ * - Matches real cinema app UX
+ * 
+ * ✅ 2. SMART FAST-PICK ALGORITHM (Block-Finding)
+ * Priority Order:
+ * - Find continuous block of N seats in same row (e.g., A1-A2-A3-A4)
+ * - If not found → Find closest seats in same row
+ * - If still not found → Choose front rows (closest to stage)
+ * - Prevents scattered seat selection
+ * Result: Users get adjacent seats, not random scattered seats
+ * 
+ * ✅ 3. ADD/REMOVE SEATS WITH VALIDATION
+ * - User can remove seats (frees up selection quota)
+ * - User can add seats (same ticket type, up to numberOfSeats limit)
+ * - Warns if seats become scattered (non-adjacent)
+ * - Suggests best seats (closest to stage, center positions)
+ * - Maintains block continuity when possible
+ * 
+ * ✅ 4. FLEXIBLE MANUAL MODE
+ * - User can pick UP TO N seats (not forced to pick exactly N)
+ * - Cannot checkout until reaching N seats
+ * - Shows remaining seat count
+ * - Highlights suggested best seats
+ * 
+ * ✅ 5. SEAT HIGHLIGHTING & SUGGESTIONS
+ * - Suggested seats: Closest to stage + center positions
+ * - Visual hints for best choices
+ * - Shows seat legend (selected, VIP, standard, occupied)
+ * 
+ * ✅ 6. TEMPORARY SEAT RESERVATION (5-Minute Lock)
+ * - Fast-pick locks seats for 5 minutes
+ * - Shows countdown timer ("Reserved: 04:59")
+ * - Prevents race conditions (2 users picking same seats)
+ * - Auto-clears selection when timer expires
+ * 
+ * ✅ 7. SCATTERED SEAT WARNING
+ * - Detects non-adjacent seat selections
+ * - Warns: "Selected seats are not adjacent. Continue?"
+ * - User can proceed or choose again
+ * - Encourages better seat choices
+ * 
+ * ✅ 8. BACKEND VALIDATION READY
+ * - Frontend = convenience, Backend = authority
+ * - Passes reservationExpiry to payment page
+ * - Backend MUST double-check seat availability
+ * - Backend MUST reject if seats already booked
+ * - Backend MUST handle race conditions
+ * 
+ * ═══════════════════════════════════════════════════════════════════════
+ * STATE MANAGEMENT
+ * ═══════════════════════════════════════════════════════════════════════
+ * 
+ * - selectedSeats: Seat[] - Array of currently selected seats
+ * - numberOfSeats: number - How many seats user wants (1-10)
+ * - selectionMode: 'fast' | 'manual' | null - Which mode user chose
+ * - showSeatOptions: boolean - Show mode selection modal
+ * - showQuantityModal: boolean - Show quantity input after mode selection
+ * - reservationExpiry: Date | null - When seat reservation expires
+ * - remainingTime: number - Countdown timer in seconds
+ * - showScatteredWarning: boolean - Warning for non-adjacent seats
+ * - suggestedSeats: Seat[] - Top 5 best available seats
+ * 
+ * ═══════════════════════════════════════════════════════════════════════
+ * ALGORITHMS
+ * ═══════════════════════════════════════════════════════════════════════
+ * 
+ * Fast-Pick Block Finding:
+ * 1. Group seats by row
+ * 2. For each row (sorted A→B→C):
+ *    - Look for continuous sequences of N seats
+ *    - Check if columns are sequential (no gaps)
+ *    - Return first perfect block found
+ * 3. If no block found:
+ *    - Sort by row (front first) + column (center first)
+ *    - Take first N seats (best positioned)
+ * 4. Set 5-minute reservation timer
+ * 
+ * Suggested Seats Calculation:
+ * - Filter: AVAILABLE + matching ticket type
+ * - Sort: By row (A before B) + proximity to center
+ * - Return top 5 suggestions
+ * 
+ * Adjacency Check:
+ * - All seats must be in same row
+ * - Column numbers must be sequential (no gaps > 1)
+ * - Returns false if scattered
+ * 
+ * ═══════════════════════════════════════════════════════════════════════
  */
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
@@ -73,10 +171,11 @@ export default function EventDetail() {
     selectedTicketName: selectedTicket?.name
   })
 
-  const isOrganizer = user?.role === 'ORGANIZER'
-  const isStaff = user?.role === 'STAFF'
+  // Role-based access control
+  const isOrganizer = user?.role === 'ORGANIZER' // Can edit event
+  const isStaff = user?.role === 'STAFF' // Can view but not register
 
-  // Load event data
+  // Fetch event details on mount
   useEffect(() => {
     const fetchEventDetail = async () => {
       if (!token || !id) return
@@ -193,10 +292,12 @@ export default function EventDetail() {
     }
 
     fetchSeats()
-  }, [event, token])
+  }, [event, token]) // Refetch when event loaded or token changes
 
-  // Ticket selection opens mode picker (fast/manual)
-
+  /**
+   * Step 1: User selects ticket type (VIP or STANDARD)
+   * Opens mode selection modal (fast/manual choice)
+   */
   const handleTicketSelect = (ticket: Ticket) => {
     setSelectedTicket(ticket)
     seatSelection.resetSelection()
@@ -264,13 +365,21 @@ export default function EventDetail() {
     })
   }
 
+  /**
+   * Step 2a: User chooses FAST selection mode
+   * Opens quantity modal to ask how many seats
+   */
   const handleFastChoose = () => {
     seatSelection.setSelectionMode('fast')
     seatSelection.setShowQuantityModal(true)
     seatSelection.setShowSeatOptions(false)
   }
   
-  // Auto-pick best seat block after user enters quantity
+  /**
+   * Step 3a: Execute fast-pick algorithm after quantity confirmed
+   * Uses findBestSeatBlock() to auto-select adjacent seats
+   * Sets 5-minute reservation timer and scrolls to seat map
+   */
   const executeFastPick = () => {
     if (!selectedTicket) return
     
@@ -296,13 +405,20 @@ export default function EventDetail() {
     }, 100)
   }
 
+  /**
+   * Step 2b: User chooses MANUAL selection mode
+   * Opens quantity modal to ask how many seats they want
+   */
   const handleManualChoose = () => {
     seatSelection.setSelectionMode('manual')
     seatSelection.setShowQuantityModal(true)
     seatSelection.setShowSeatOptions(false)
   }
   
-  // Show suggestions, let user click seats manually
+  /**
+   * Step 3b: Prepare manual selection after quantity confirmed
+   * Shows suggested seats and scrolls to map for user to click
+   */
   const executeManualPick = () => {
     seatSelection.setShowQuantityModal(false)
     
@@ -316,8 +432,19 @@ export default function EventDetail() {
     }, 100)
   }
 
-  // Checkout: validate selections then go to payment
+  /**
+   * Final step: Checkout and navigate to payment
+   * 
+   * Validation flow:
+   * 1. Check ticket selected and seats chosen
+   * 2. Check reservation not expired
+   * 3. Warn if seats scattered (user can still proceed)
+   * 4. Verify seats still available (re-fetch from backend)
+   * 5. Temporarily reserve seats (lock for 5 min)
+   * 6. Navigate to payment with verified data
+   */
   const handleRegister = async () => {
+    // Validation 1: Ticket type selected
     if (!selectedTicket) {
       alert('Vui lòng chọn loại vé')
       return
@@ -351,7 +478,8 @@ export default function EventDetail() {
     try {
       console.log('Đang kiểm tra tình trạng ghế...')
 
-      // Re-check with backend in case someone else just booked these seats
+      // Critical: Re-verify seats from backend to prevent race conditions
+      // Another user might have booked same seats in parallel
       const verification = await verifySeatAvailability(
         seatSelection.selectedSeats,
         event.eventId,
@@ -361,6 +489,7 @@ export default function EventDetail() {
       )
 
       if (!verification.available) {
+        // Race condition detected: Someone else booked these seats
         const conflictList = verification.conflicts.map(s => s.seatCode).join(', ')
         alert(
           `Rất tiếc, một số ghế bạn chọn đã được đặt bởi người khác:\n${conflictList}\n\n` +
@@ -377,13 +506,15 @@ export default function EventDetail() {
         return
       }
 
-      // Try to lock seats for 5 min (optional endpoint)
+      // Lock seats temporarily (5 min) to prevent double-booking
+      // Gracefully handles if backend doesn't have this endpoint yet
       await temporarilyReserveSeats(
         event.eventId,
         seatSelection.selectedSeats.map(s => s.seatId),
         token || ''
       )
 
+      // All validations passed - proceed to payment
       navigate('/dashboard/payment', {
         state: {
           eventId: event.eventId,
@@ -429,9 +560,15 @@ export default function EventDetail() {
     )
   }
 
+  // Extract VIP and STANDARD tickets from event data
+  // Cast to local Ticket type to support optional description field
   const tickets = (event.tickets || []) as Ticket[]
   const vipTicket = tickets.find((t) => t.name === 'VIP')
   const standardTicket = tickets.find((t) => t.name === 'STANDARD')
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RENDER: Event detail page with seat selection
+  // ═══════════════════════════════════════════════════════════════════════
   return (
     <div className="max-w-7xl mx-auto">
       {/* ─────────────────────────────────────────────────────────────── */}
