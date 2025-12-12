@@ -3,8 +3,6 @@ import { useNavigate, Link } from 'react-router-dom'
 import { GraduationCap } from 'lucide-react'
 import axios from 'axios'
 import ReCAPTCHA from 'react-google-recaptcha'
-import fptLogo from '../assets/fpt-logo.png'
-import fptCampus from '../assets/dai-hoc-fpt-tp-hcm-1.jpeg'
 
 // Use proxy to avoid CORS issues in development
 const API_URL = '/api'
@@ -236,29 +234,14 @@ export default function Register() {
   }
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center px-4 relative"
-      style={{
-        backgroundImage: `url(${fptCampus})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
-    >
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40"></div>
-      
-      <div className="max-w-md w-full bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 border-2 border-white/50 relative z-10">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8">
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <img 
-              src={fptLogo} 
-              alt="FPT Education" 
-              className="h-20 w-auto"
-            />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
+            <GraduationCap className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Tạo tài khoản</h1>
-          <p className="text-gray-600 mt-2">Đăng ký vào hệ thống</p>
+          <h1 className="text-3xl font-bold text-gray-900">FPT Events</h1>
+          <p className="text-gray-600 mt-2">Tạo tài khoản mới</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

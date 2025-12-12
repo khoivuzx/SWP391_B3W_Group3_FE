@@ -1,12 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { CalendarDays, Ticket, Users, ShieldCheck, Sparkles, TrendingUp, Award } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import fptLogo from '../assets/fpt-logo.png'
 import fptLogoLoading from '../assets/fpt-logo-loading.png'
 
 const stats = [
   { label: 'Sự kiện đã tổ chức', value: '250+', icon: CalendarDays },
-  { label: 'Sinh viên tham gia', value: '1.000+', icon: Users },
+  { label: 'Sinh viên tham gia', value: '12.000+', icon: Users },
   { label: 'Đơn vị tổ chức', value: '35+', icon: Award },
 ]
 
@@ -41,54 +41,6 @@ export default function GuestLanding() {
   const navigate = useNavigate()
   const [showLoading, setShowLoading] = useState(false)
   const highlightedEvents: any[] = []
-  const [counters, setCounters] = useState({ events: 0, students: 0, organizers: 0 })
-  const [hasAnimated, setHasAnimated] = useState(false)
-  const statsRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !hasAnimated) {
-            setHasAnimated(true)
-            animateCounters()
-          }
-        })
-      },
-      { threshold: 0.3 }
-    )
-
-    if (statsRef.current) {
-      observer.observe(statsRef.current)
-    }
-
-    return () => observer.disconnect()
-  }, [hasAnimated])
-
-  const animateCounters = () => {
-    const duration = 2000 // 2 seconds
-    const targetValues = { events: 250, students: 1000, organizers: 35 }
-    const steps = 60
-    const stepDuration = duration / steps
-
-    let currentStep = 0
-
-    const interval = setInterval(() => {
-      currentStep++
-      const progress = currentStep / steps
-
-      setCounters({
-        events: Math.floor(targetValues.events * progress),
-        students: Math.floor(targetValues.students * progress),
-        organizers: Math.floor(targetValues.organizers * progress)
-      })
-
-      if (currentStep >= steps) {
-        clearInterval(interval)
-        setCounters(targetValues)
-      }
-    }, stepDuration)
-  }
 
   const handleLoginClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -167,48 +119,21 @@ export default function GuestLanding() {
         </section>
 
         {/* Stats Section */}
-        <section ref={statsRef} className="grid gap-6 sm:grid-cols-3">
-          {/* Sự kiện đã tổ chức */}
-          <div className="group relative overflow-hidden rounded-3xl border-2 border-white bg-white/80 backdrop-blur-sm p-8 shadow-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:border-orange-500">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/20 to-amber-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
-            <div className="relative space-y-3">
-              <CalendarDays className="w-12 h-12 text-orange-600 group-hover:scale-110 transition-transform duration-300" />
-              <p className="text-5xl font-extrabold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
-                {counters.events}+
-              </p>
-              <p className="text-sm font-semibold uppercase tracking-wider text-gray-600">
-                Sự kiện đã tổ chức
-              </p>
+        <section className="grid gap-6 sm:grid-cols-3">
+          {stats.map(stat => (
+            <div key={stat.label} className="group relative overflow-hidden rounded-3xl border-2 border-white bg-white/80 backdrop-blur-sm p-8 shadow-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:border-orange-500">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/20 to-amber-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
+              <div className="relative space-y-3">
+                <stat.icon className="w-12 h-12 text-orange-600 group-hover:scale-110 transition-transform duration-300" />
+                <p className="text-5xl font-extrabold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
+                  {stat.value}
+                </p>
+                <p className="text-sm font-semibold uppercase tracking-wider text-gray-600">
+                  {stat.label}
+                </p>
+              </div>
             </div>
-          </div>
-
-          {/* Sinh viên tham gia */}
-          <div className="group relative overflow-hidden rounded-3xl border-2 border-white bg-white/80 backdrop-blur-sm p-8 shadow-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:border-orange-500">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/20 to-amber-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
-            <div className="relative space-y-3">
-              <Users className="w-12 h-12 text-orange-600 group-hover:scale-110 transition-transform duration-300" />
-              <p className="text-5xl font-extrabold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
-                {counters.students.toLocaleString('vi-VN')}+
-              </p>
-              <p className="text-sm font-semibold uppercase tracking-wider text-gray-600">
-                Sinh viên tham gia
-              </p>
-            </div>
-          </div>
-
-          {/* Đơn vị tổ chức */}
-          <div className="group relative overflow-hidden rounded-3xl border-2 border-white bg-white/80 backdrop-blur-sm p-8 shadow-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:border-orange-500">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/20 to-amber-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
-            <div className="relative space-y-3">
-              <Award className="w-12 h-12 text-orange-600 group-hover:scale-110 transition-transform duration-300" />
-              <p className="text-5xl font-extrabold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">
-                {counters.organizers}+
-              </p>
-              <p className="text-sm font-semibold uppercase tracking-wider text-gray-600">
-                Đơn vị tổ chức
-              </p>
-            </div>
-          </div>
+          ))}
         </section>
 
         {/* Features Section */}
