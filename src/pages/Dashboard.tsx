@@ -196,7 +196,7 @@ export default function Dashboard() {
               }`}
             >
               <div className="flex flex-col items-start">
-                <span>Sự kiện hôm nay ({format(today, 'dd/MM')})</span>
+                <span>Sự kiện hôm nay</span>
               </div>
             </button>
 
@@ -423,15 +423,6 @@ export default function Dashboard() {
           )}
         </>
       )}
-
-      <div className="mt-8 text-center">
-        <Link
-          to="/dashboard/events"
-          className="inline-block text-orange-600 hover:text-orange-700 font-medium"
-        >
-          Xem tất cả sự kiện →
-        </Link>
-      </div>
 
       {/* Event Detail Modal */}
       <EventDetailModal

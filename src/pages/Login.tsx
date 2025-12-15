@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import axios from 'axios'
 import ReCAPTCHA from 'react-google-recaptcha'
 import fptLogo from '../assets/fpt-logo.png'
-import loginImg from '../assets/login.jpg'
+import fptCampus from '../assets/dai-hoc-fpt-tp-hcm-1.jpeg'
 
 // Use proxy to avoid CORS issues in development
 const API_URL = '/api'
@@ -25,7 +25,7 @@ interface FormData {
 // 4. Copy Site Key và dán vào đây
 //const RECAPTCHA_SITE_KEY = '6LeVFSUsAAAAAMas_aThh1RZtxiGjWgRquLuAoTU' // Test key - THAY BẰNG SITE KEY THẬT
 const RECAPTCHA_SITE_KEY = '6LcRNiUsAAAAAOTRRAnoQAHXQNfIFx5v49ZAbnsK' 
-const USE_REAL_RECAPTCHA = false // Đổi thành false để dùng TEST_BYPASS khi debug nhanh
+const USE_REAL_RECAPTCHA = true // Đổi thành false để dùng TEST_BYPASS khi debug nhanh
 
 export default function Login() {
   const [formData, setFormData] = useState<FormData>({
@@ -36,7 +36,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null)
   const recaptchaRef = useRef<ReCAPTCHA | null>(null)
-  const { setUser } = useAuth()
+  const { setUser, setToken } = useAuth()
   const navigate = useNavigate()
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,12 +69,9 @@ export default function Login() {
         console.log('User:', user)
         console.log('Token (first 40 chars):', token ? token.slice(0, 40) : null)
 
-        // Save token and user to localStorage
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-
-        // Update user in AuthContext with data from API
+        // Update user and token in AuthContext (which auto-saves to localStorage)
         setUser(user)
+        setToken(token)
 
         // Reset captcha on success (optional)
         try {
@@ -146,9 +143,9 @@ export default function Login() {
 
   return (
     <div 
-      className="min-h-screen flex items-center justify-center px-4 relative "
+      className="min-h-screen flex items-center justify-center px-4 relative"
       style={{
-        backgroundImage: `url(${loginImg})`,
+        backgroundImage: `url(${fptCampus})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'

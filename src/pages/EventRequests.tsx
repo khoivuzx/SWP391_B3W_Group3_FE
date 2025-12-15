@@ -30,7 +30,7 @@ type EventRequest = {
 const getStatusLabel = (status: EventRequestStatus) => {
   switch (status) {
     case 'APPROVED':
-      return 'Đã duyệt'
+      return 'Hoàn Thành'
     case 'REJECTED':
       return 'Bị từ chối'
     case 'UPDATING':
@@ -62,7 +62,7 @@ export default function EventRequests() {
   const isStaff = user?.role === 'STAFF'
   const isOrganizer = user?.role === 'ORGANIZER'
   const [requests, setRequests] = useState<EventRequest[]>([])
-  const [pendingRequests, setPendingRequests] = useState<EventRequest[]>([])
+  const [waitingRequests, setWaitingRequests] = useState<EventRequest[]>([])
   const [processedRequests, setProcessedRequests] = useState<EventRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +71,7 @@ export default function EventRequests() {
   const [isProcessModalOpen, setIsProcessModalOpen] = useState(false)
   const [processAction, setProcessAction] = useState<'APPROVE' | 'REJECT'>('APPROVE')
   const [requestToProcess, setRequestToProcess] = useState<EventRequest | null>(null)
-  const [activeTab, setActiveTab] = useState<'pending' | 'processed'>('pending')
+  const [activeTab, setActiveTab] = useState<'waiting' | 'processed'>('waiting')
 
   useEffect(() => {
     fetchEventRequests()
@@ -138,33 +138,23 @@ export default function EventRequests() {
           const updating = approved.filter((req: EventRequest) => req.status === 'UPDATING')
           approved = approved.filter((req: EventRequest) => req.status === 'APPROVED')
           
-          // Different categorization for Staff vs Organizer
-          if (isStaff) {
-            // Staff: pending tab has PENDING, processed tab has APPROVED + REJECTED + UPDATING
-            const processed = [...approved, ...rejected, ...updating]
-            setPendingRequests(pending)
-            setProcessedRequests(processed)
-          } else {
-            // Organizer: "Need action" tab has PENDING + UPDATING, "Processed" tab has APPROVED + REJECTED
-            const needAction = [...pending, ...updating]
-            const processed = [...approved, ...rejected]
-            setPendingRequests(needAction)
-            setProcessedRequests(processed)
-          }
+          // Waiting: PENDING + UPDATING
+          const waiting = [...pending, ...updating]
+          // Processed: APPROVED + REJECTED
+          const processed = [...approved, ...rejected]
           
-          setRequests([...pending, ...approved, ...rejected, ...updating])
+          setWaitingRequests(waiting)
+          setProcessedRequests(processed)
+          setRequests([...waiting, ...processed])
         } else if (Array.isArray(data)) {
           // Handle legacy flat array structure
           const updatedData = data.map(updateRequestStatus)
           setRequests(updatedData)
           
-          if (isStaff) {
-            setPendingRequests(updatedData.filter(req => req.status === 'PENDING'))
-            setProcessedRequests(updatedData.filter(req => req.status === 'APPROVED' || req.status === 'REJECTED' || req.status === 'UPDATING'))
-          } else {
-            setPendingRequests(updatedData.filter(req => req.status === 'PENDING' || req.status === 'UPDATING'))
-            setProcessedRequests(updatedData.filter(req => req.status === 'APPROVED' || req.status === 'REJECTED'))
-          }
+          // Waiting: PENDING + UPDATING
+          setWaitingRequests(updatedData.filter(req => req.status === 'PENDING' || req.status === 'UPDATING'))
+          // Processed: APPROVED + REJECTED
+          setProcessedRequests(updatedData.filter(req => req.status === 'APPROVED' || req.status === 'REJECTED'))
         }
       } else {
         throw new Error('Failed to fetch event requests')
@@ -266,11 +256,14 @@ export default function EventRequests() {
   }
 
   // Filter requests based on active tab
-  const filteredRequests = activeTab === 'pending'
-    ? pendingRequests
-    : processedRequests
+  const filteredRequests = (isStaff || isOrganizer)
+    ? activeTab === 'waiting'
+      ? waitingRequests
+      : processedRequests
+    : requests
 
-  const pendingCount = pendingRequests.length
+  // Counts for tabs
+  const waitingCount = waitingRequests.length
   const processedCount = processedRequests.length
 
   return (
@@ -298,43 +291,45 @@ export default function EventRequests() {
         )}
       </div>
 
-      {/* Tabs for both Staff and Organizer */}
-      <div className="mb-6">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('pending')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'pending'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              {isStaff ? 'Đang chờ duyệt' : 'Cần thao tác'}
-              {pendingCount > 0 && (
-                <span className="ml-2 py-0.5 px-2 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium">
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('processed')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'processed'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Đã xử lý
-              {processedCount > 0 && (
-                <span className="ml-2 py-0.5 px-2 rounded-full bg-gray-100 text-gray-800 text-xs font-medium">
-                  {processedCount}
-                </span>
-              )}
-            </button>
-          </nav>
+      {/* Tabs for Staff and Organizers */}
+      {(isStaff || isOrganizer) && (
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('waiting')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'waiting'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Chờ
+                {waitingCount > 0 && (
+                  <span className="ml-2 py-0.5 px-2 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium">
+                    {waitingCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('processed')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'processed'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Đã xử lý
+                {processedCount > 0 && (
+                  <span className="ml-2 py-0.5 px-2 rounded-full bg-gray-100 text-gray-800 text-xs font-medium">
+                    {processedCount}
+                  </span>
+                )}
+              </button>
+            </nav>
+          </div>
         </div>
-      </div>
+      )}
 
       {loading ? (
         <div className="bg-white rounded-lg shadow-md p-10 text-center">
@@ -354,15 +349,19 @@ export default function EventRequests() {
         <div className="bg-white rounded-lg shadow-md p-10 text-center">
           <FileClock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 text-lg">
-            {activeTab === 'pending' 
-              ? (isStaff ? 'Không có yêu cầu đang chờ duyệt' : 'Không có yêu cầu cần thao tác')
-              : 'Chưa có yêu cầu nào được xử lý'
+            {(isStaff || isOrganizer) && activeTab === 'waiting' 
+              ? 'Không có yêu cầu đang chờ'
+              : (isStaff || isOrganizer) && activeTab === 'processed'
+              ? 'Chưa có yêu cầu nào được xử lý'
+              : 'Hiện chưa có yêu cầu sự kiện nào'
             }
           </p>
           <p className="text-sm text-gray-400 mt-2">
-            {activeTab === 'pending'
-              ? (isStaff ? 'Khi có yêu cầu mới, chúng sẽ xuất hiện tại đây.' : 'Các yêu cầu đang chờ duyệt hoặc cần cập nhật sẽ hiển thị ở đây.')
-              : 'Các yêu cầu đã duyệt hoặc từ chối sẽ hiển thị ở đây.'
+            {(isStaff || isOrganizer) && activeTab === 'waiting'
+              ? 'Các yêu cầu đang chờ duyệt và chờ cập nhật thông tin sẽ hiển thị ở đây.'
+              : (isStaff || isOrganizer) && activeTab === 'processed'
+              ? 'Các yêu cầu đã hoàn thành hoặc bị từ chối sẽ hiển thị ở đây.'
+              : 'Khi bạn gửi yêu cầu, dữ liệu sẽ xuất hiện tại đây.'
             }
           </p>
         </div>
@@ -385,7 +384,7 @@ export default function EventRequests() {
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Trạng thái
                 </th>
-                {isStaff && activeTab === 'pending' && (
+                {isStaff && activeTab === 'waiting' && (
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Thao tác
                   </th>
@@ -419,7 +418,7 @@ export default function EventRequests() {
                       {getStatusLabel(req.status)}
                     </span>
                   </td>
-                  {isStaff && activeTab === 'pending' && (
+                {isStaff && activeTab === 'waiting' && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                       {req.status === 'PENDING' && (
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>

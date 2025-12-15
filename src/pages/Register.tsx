@@ -31,7 +31,6 @@ const RECAPTCHA_SITE_KEY = '6LeVFSUsAAAAAMas_aThh1RZtxiGjWgRquLuAoTU' // Test ke
 const USE_REAL_RECAPTCHA = true // Đổi thành true khi đã có Site Key thật
 
 export default function Register() {
-  const { showToast } = useToast()
   const [isOtpSent, setIsOtpSent] = useState(false)
   const [otpCountdown, setOtpCountdown] = useState(0)
   const [formData, setFormData] = useState<FormData>({
@@ -240,7 +239,7 @@ export default function Register() {
     <div 
       className="min-h-screen flex items-center justify-center px-4 relative"
       style={{
-        backgroundImage: `url(${loginImg})`,
+        backgroundImage: `url(${fptCampus})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
