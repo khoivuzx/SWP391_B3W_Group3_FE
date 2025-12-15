@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Upload, X, Plus, Trash2 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { uploadEventBanner, validateImageFile } from '../utils/imageUpload'
 import { useToast } from '../contexts/ToastContext'
 
@@ -22,6 +22,7 @@ export default function EventEdit() {
   const [loading, setLoading] = useState(false)
    const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expectedCapacity, setExpectedCapacity] = useState<number>(0)
   
   const [speaker, setSpeaker] = useState({
     fullName: '',
@@ -40,6 +41,61 @@ export default function EventEdit() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  
+  const [selectedAvatarImage, setSelectedAvatarImage] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [isDraggingAvatar, setIsDraggingAvatar] = useState(false)
+  
+  // Track if we've already shown the capacity warning
+  const hasShownWarningRef = useRef(false)
+
+  // Fetch event request to get expectedCapacity
+  useEffect(() => {
+    const fetchEventRequest = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        
+        // Fetch all event requests to find the one matching this event ID
+        const response = await fetch('http://localhost:3000/api/event-requests/my', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          
+          // Handle both array and object structure
+          let allRequests = []
+          if (Array.isArray(data)) {
+            allRequests = data
+          } else {
+            allRequests = [
+              ...(Array.isArray(data.pending) ? data.pending : []),
+              ...(Array.isArray(data.approved) ? data.approved : []),
+              ...(Array.isArray(data.rejected) ? data.rejected : [])
+            ]
+          }
+          
+          // Find the request that created this event
+          const matchingRequest = allRequests.find(
+            (req: any) => req.createdEventId === parseInt(id!)
+          )
+          
+          if (matchingRequest && matchingRequest.expectedCapacity) {
+            setExpectedCapacity(matchingRequest.expectedCapacity)
+            console.log('Expected capacity from request:', matchingRequest.expectedCapacity)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching event request:', error)
+      }
+    }
+
+    if (id) {
+      fetchEventRequest()
+    }
+  }, [id])
 
    // Removed fetching event details to avoid viewing them on this page
 
@@ -82,6 +138,70 @@ export default function EventEdit() {
     setTickets(prev => {
       const updated = [...prev]
       updated[index] = { ...updated[index], [field]: value }
+      
+      // Validate total maxQuantity against expectedCapacity
+      if (field === 'maxQuantity' && expectedCapacity > 0) {
+        let numValue = typeof value === 'string' ? parseInt(value, 10) : value
+        // Handle NaN or empty string
+        if (isNaN(numValue) || numValue < 0) {
+          numValue = 0
+        }
+        
+        // Calculate total maxQuantity including the new value
+        const totalMaxQuantity = updated.reduce((sum, ticket, i) => {
+          if (i === index) {
+            return Number(sum) + Number(numValue)
+          }
+          // Parse ticket.maxQuantity as number to avoid string concatenation
+          const ticketQty = typeof ticket.maxQuantity === 'string' 
+            ? parseInt(ticket.maxQuantity, 10) 
+            : ticket.maxQuantity
+          return Number(sum) + Number(ticketQty || 0)
+        }, 0)
+        
+        if (totalMaxQuantity > expectedCapacity) {
+          // Only show toast once per input session
+          if (!hasShownWarningRef.current) {
+            showToast('warning', `Tổng số lượng tối đa của tất cả vé (${totalMaxQuantity}) không được vượt quá ${expectedCapacity} (số lượng dự kiến từ yêu cầu)`)
+            hasShownWarningRef.current = true
+            // Reset after 2 seconds to allow showing again if needed
+            setTimeout(() => {
+              hasShownWarningRef.current = false
+            }, 2000)
+          }
+          // Revert the change
+          updated[index] = prev[index]
+          return updated
+        }
+      }
+      
+      return updated
+    })
+  }
+
+  const handleAddTicket = () => {
+    const newTicketName: TicketType = tickets.length % 2 === 0 ? 'VIP' : 'STANDARD'
+    setTickets(prev => [...prev, {
+      name: newTicketName,
+      description: '',
+      price: 0,
+      maxQuantity: 0,
+      status: 'ACTIVE'
+    }])
+  }
+
+  const handleRemoveTicket = (index: number) => {
+    if (tickets.length <= 1) {
+      setError('Phải có ít nhất 1 loại vé')
+      return
+    }
+    setTickets(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleTicketTypeChange = (index: number, newType: TicketType) => {
+    setTickets(prev => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], name: newType }
       return updated
     })
   }
@@ -149,6 +269,69 @@ export default function EventEdit() {
     reader.readAsDataURL(file)
   }
 
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const validation = validateImageFile(file)
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid file')
+      return
+    }
+
+    setSelectedAvatarImage(file)
+    setError(null)
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveAvatar = () => {
+    setSelectedAvatarImage(null)
+    setAvatarPreview(null)
+    setSpeaker(prev => ({ ...prev, avatarUrl: '' }))
+    setError(null)
+  }
+
+  const handleAvatarDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingAvatar(true)
+  }
+
+  const handleAvatarDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingAvatar(false)
+  }
+
+  const handleAvatarDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingAvatar(false)
+
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+
+    const validation = validateImageFile(file)
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid file')
+      return
+    }
+
+    setSelectedAvatarImage(file)
+    setError(null)
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -163,11 +346,27 @@ export default function EventEdit() {
           return
         }
       }
+      
+      // Validate total maxQuantity doesn't exceed expectedCapacity
+      if (expectedCapacity > 0) {
+        const totalMaxQuantity = tickets.reduce((sum, ticket) => sum + ticket.maxQuantity, 0)
+        if (totalMaxQuantity > expectedCapacity) {
+          setError(`Tổng số lượng tối đa của tất cả vé (${totalMaxQuantity}) không được vượt quá số lượng dự kiến (${expectedCapacity})`)
+          setIsSubmitting(false)
+          return
+        }
+      }
 
-      // Upload image if selected
+      // Upload banner image if selected
       let finalBannerUrl = bannerUrl
       if (selectedImage) {
         finalBannerUrl = await uploadEventBanner(selectedImage)
+      }
+
+      // Upload avatar image if selected
+      let finalAvatarUrl = speaker.avatarUrl
+      if (selectedAvatarImage) {
+        finalAvatarUrl = await uploadEventBanner(selectedAvatarImage)
       }
 
       const token = localStorage.getItem('token')
@@ -178,7 +377,7 @@ export default function EventEdit() {
           bio: speaker.bio,
           email: speaker.email,
           phone: speaker.phone,
-          avatarUrl: speaker.avatarUrl
+          avatarUrl: finalAvatarUrl
         },
         tickets: tickets.map(ticket => ({
           name: ticket.name,
@@ -303,27 +502,95 @@ export default function EventEdit() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  URL ảnh đại diện (tùy chọn)
+                  Ảnh đại diện diễn giả (tùy chọn)
                 </label>
-                <input
-                  type="url"
-                  value={speaker.avatarUrl}
-                  onChange={(e) => handleSpeakerChange('avatarUrl', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                
+                {!avatarPreview ? (
+                  <div 
+                    onDragOver={handleAvatarDragOver}
+                    onDragLeave={handleAvatarDragLeave}
+                    onDrop={handleAvatarDrop}
+                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                      isDraggingAvatar 
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-300 hover:border-blue-400'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      id="avatar-upload"
+                      accept="image/*"
+                      onChange={handleAvatarSelect}
+                      className="hidden"
+                    />
+                    <label htmlFor="avatar-upload" className="cursor-pointer">
+                      <Upload className="w-10 h-10 mx-auto text-gray-400 mb-3" />
+                      <p className="text-gray-600 mb-1 text-sm">Kéo thả ảnh hoặc click để chọn</p>
+                      <p className="text-xs text-gray-500">PNG, JPG, GIF tối đa 5MB</p>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <img
+                      src={avatarPreview}
+                      alt="Avatar Preview"
+                      className="w-32 h-32 object-cover rounded-full mx-auto border-4 border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveAvatar}
+                      className="absolute top-0 right-1/2 translate-x-16 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Tickets */}
           <div className="border-b pb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Thông tin vé</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Thông tin vé</h2>
+              <button
+                type="button"
+                onClick={handleAddTicket}
+                className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Thêm loại vé
+              </button>
+            </div>
             
             {tickets.map((ticket, index) => (
-              <div key={ticket.name} className="mb-6 p-4 border border-gray-200 rounded-lg">
-                <h3 className="font-medium text-gray-900 mb-3">
-                  Vé {ticket.name}
-                </h3>
+              <div key={index} className="mb-6 p-4 border border-gray-200 rounded-lg relative">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Loại vé *
+                    </label>
+                    <select
+                      value={ticket.name}
+                      onChange={(e) => handleTicketTypeChange(index, e.target.value as TicketType)}
+                      className="w-48 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="VIP">VIP</option>
+                      <option value="STANDARD">STANDARD</option>
+                    </select>
+                  </div>
+                  
+                  {tickets.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTicket(index)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Xóa loại vé"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
                 
                 <div className="space-y-4">
                   <div>

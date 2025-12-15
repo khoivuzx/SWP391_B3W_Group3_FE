@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { EventListItem } from '../../types/event'
 
 interface EventCalendarProps {
@@ -9,6 +9,8 @@ interface EventCalendarProps {
 
 export function EventCalendar({ events, onEventClick }: EventCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDayEvents, setSelectedDayEvents] = useState<EventListItem[] | null>(null)
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -40,6 +42,17 @@ export function EventCalendar({ events, onEventClick }: EventCalendarProps) {
     setCurrentDate(new Date())
   }
 
+  // Show all events for a specific day
+  const handleShowAllEvents = (day: number, dayEvents: EventListItem[]) => {
+    setSelectedDay(day)
+    setSelectedDayEvents(dayEvents)
+  }
+
+  const handleCloseModal = () => {
+    setSelectedDay(null)
+    setSelectedDayEvents(null)
+  }
+
   // Get events for a specific day
   const getEventsForDay = (day: number) => {
     return events.filter(event => {
@@ -47,8 +60,7 @@ export function EventCalendar({ events, onEventClick }: EventCalendarProps) {
       return (
         eventDate.getDate() === day &&
         eventDate.getMonth() === month &&
-        eventDate.getFullYear() === year &&
-        event.status === 'OPEN' // Only show confirmed/open events
+        eventDate.getFullYear() === year
       )
     })
   }
@@ -194,9 +206,15 @@ export function EventCalendar({ events, onEventClick }: EventCalendarProps) {
                     </button>
                   ))}
                   {dayEvents.length > 2 && (
-                    <div className="text-xs text-gray-500 px-2">
-                      +{dayEvents.length - 2} thêm
-                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleShowAllEvents(day, dayEvents)
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-0.5 hover:bg-blue-50 rounded transition-colors w-full text-left"
+                    >
+                      +{dayEvents.length - 2} sự kiện
+                    </button>
                   )}
                 </div>
               )}
@@ -204,6 +222,78 @@ export function EventCalendar({ events, onEventClick }: EventCalendarProps) {
           )
         })}
       </div>
+
+      {/* All Events Modal */}
+      {selectedDayEvents && selectedDay && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-xl font-bold text-gray-900">
+                Sự kiện ngày {selectedDay} {monthNames[month]} {year}
+              </h3>
+              <button
+                onClick={handleCloseModal}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto max-h-[calc(80vh-80px)]">
+              <div className="space-y-3">
+                {selectedDayEvents.map(event => (
+                  <button
+                    key={event.eventId}
+                    onClick={() => {
+                      onEventClick?.(event)
+                      handleCloseModal()
+                    }}
+                    className="w-full text-left border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-blue-400 transition-all"
+                  >
+                    <div className="flex gap-3 p-3">
+                      {event.bannerUrl ? (
+                        <img
+                          src={event.bannerUrl}
+                          alt={event.title}
+                          className="w-24 h-24 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 bg-blue-100 rounded flex items-center justify-center">
+                          <span className="text-blue-600 font-bold text-sm">Sự kiện</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-900 mb-1 line-clamp-2">
+                          {event.title}
+                        </h4>
+                        <p className="text-sm text-gray-600 mb-1 line-clamp-2">
+                          {event.description}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span>
+                            {new Date(event.startTime).toLocaleTimeString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          {event.venueLocation && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate">{event.venueLocation}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="mt-4 flex items-center gap-4 text-sm text-gray-600">

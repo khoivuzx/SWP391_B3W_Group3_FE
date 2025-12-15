@@ -205,14 +205,20 @@ export function ProcessRequestModal({
             <p className="text-sm text-gray-600">{request.title}</p>
           </div>
 
+          {request.expectedCapacity && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Số lượng người tham gia dự kiến
+              </label>
+              <p className="text-sm text-gray-600">{request.expectedCapacity} người</p>
+            </div>
+          )}
+
           {action === 'APPROVE' && (
             <div>
               <label htmlFor="area" className="block text-sm font-medium text-gray-700 mb-2">
                 Chọn khu vực <span className="text-red-500">*</span>
               </label>
-              <div className="text-xs text-gray-500 mb-2">
-                Debug: Loading={loading.toString()}, Areas count={areas.length}, Error={error || 'none'}
-              </div>
               {loading ? (
                 <p className="text-sm text-gray-500">Đang tải khu vực khả dụng...</p>
               ) : error ? (

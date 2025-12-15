@@ -225,20 +225,20 @@ export default function GuestLanding() {
         <section className="space-y-10 text-center pt-8">
           <div className="inline-flex items-center gap-2 rounded-full border-2 border-orange-400/40 bg-orange-50/80 backdrop-blur-sm px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-orange-600 shadow-sm">
             <TrendingUp className="w-4 h-4" />
-            Nền tảng quản lý sự kiện FPT
+            Nền tảng quản lý sự kiện 
           </div>
           
           <h1 className="text-5xl font-extrabold leading-tight sm:text-6xl lg:text-7xl">
             <span className="bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">
-              Tổ chức 
+              Tổ chức
             </span>
             <br />
-            <span className="text-gray-900"> Sự kiện FPT Education</span>
+            <span className="text-gray-900">Sự Kiện FPT Education</span>
           </h1>
           
           <p className="mx-auto max-w-3xl text-lg text-gray-600 sm:text-xl leading-relaxed">
             Dành cho Ban tổ chức, Bộ phận truyền thông và Câu lạc bộ trong hệ
-            thống FPT Education. Dễ dàng tham gia quản lý và tổ chức các sự kiện. 
+            thống FPT Education. Dễ dàng đăng ký tham gia,  quản lý sự kiện.
           </p>
 
           <div className="flex flex-wrap justify-center gap-5 pt-4">

@@ -6,7 +6,7 @@ import { EventDetailModal } from '../components/events/EventDetailModal'
 
 export default function EventDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const navigate = useNavigate()
 
   const [event, setEvent] = useState<EventDetailType | null>(null)
@@ -18,7 +18,7 @@ export default function EventDetail() {
   // ========== LOAD EVENT DETAILS ==========
   useEffect(() => {
     const fetchEvent = async () => {
-      if (!id) return
+      if (!id || !token) return
 
       setLoading(true)
       setError(null)
@@ -27,6 +27,7 @@ export default function EventDetail() {
         const response = await fetch(`http://localhost:3000/api/events/detail?id=${id}`, {
           headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
           },
         })
 
@@ -45,7 +46,7 @@ export default function EventDetail() {
     }
 
     fetchEvent()
-  }, [id])
+  }, [id, token])
 
   const handleEdit = () => {
     navigate(`/dashboard/events/${id}/edit`)
@@ -64,7 +65,7 @@ export default function EventDetail() {
           event={event}
           loading={loading}
           error={error}
-          token={localStorage.getItem('token')}
+          token={token}
           userRole={user?.role}
           onEdit={isOrganizer ? handleEdit : undefined}
         />
@@ -72,4 +73,5 @@ export default function EventDetail() {
     </div>
   )
 }
+
 
