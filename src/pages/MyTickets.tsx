@@ -7,6 +7,8 @@ import {
   MapPin,
   CheckCircle,
   XCircle,
+  LogOut,
+  Clock,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -42,6 +44,8 @@ type MyTicket = {
   checkedIn?: boolean
   checkInTime?: string | null // BE đang dùng
   checkinTime?: string | null
+  checkOutTime?: string | null // Thời gian check-out
+  checkoutTime?: string | null
 }
 
 export default function MyTickets() {
@@ -117,8 +121,26 @@ export default function MyTickets() {
   const isCheckedIn = (t: MyTicket) =>
     !!(t.checkedIn || t.checkInTime || t.checkinTime)
 
-  const getStatus = (t: MyTicket) =>
-    t.ticketStatus || t.status || (isCheckedIn(t) ? 'CHECKED_IN' : 'BOOKED')
+  const isCheckedOut = (t: MyTicket) =>
+    !!(t.checkOutTime || t.checkoutTime)
+
+  const getStatus = (t: MyTicket) => {
+    const rawStatus = t.ticketStatus || t.status
+    if (rawStatus) return rawStatus
+    if (isCheckedOut(t)) return 'CHECKED_OUT'
+    if (isCheckedIn(t)) return 'CHECKED_IN'
+    return 'BOOKED'
+  }
+
+  const getCheckInTime = (t: MyTicket) => t.checkInTime || t.checkinTime || null
+  const getCheckOutTime = (t: MyTicket) => t.checkOutTime || t.checkoutTime || null
+
+  const formatTime = (time: string | null) => {
+    if (!time) return null
+    const d = new Date(time)
+    if (isNaN(d.getTime())) return null
+    return format(d, 'dd/MM/yyyy HH:mm:ss', { locale: vi })
+  }
 
   // 👇 Mã vé hiển thị cho Organizer (dùng ticketId / id)
   const getTicketDisplayCode = (t: MyTicket) =>
@@ -225,7 +247,9 @@ export default function MyTickets() {
                           )}
                         </div>
                       </div>
-                      {checkedIn ? (
+                      {status === 'CHECKED_OUT' ? (
+                        <LogOut className="w-6 h-6 text-purple-500" />
+                      ) : checkedIn ? (
                         <CheckCircle className="w-6 h-6 text-green-500" />
                       ) : (
                         <XCircle className="w-6 h-6 text-gray-400" />
@@ -236,16 +260,35 @@ export default function MyTickets() {
                       <p className="text-sm text-gray-600 mb-2">Trạng thái:</p>
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                          checkedIn
+                          status === 'CHECKED_OUT'
+                            ? 'bg-purple-100 text-purple-800'
+                            : status === 'CHECKED_IN'
                             ? 'bg-green-100 text-green-800'
                             : 'bg-yellow-100 text-yellow-800'
                         }`}
                       >
-                        {checkedIn ? 'Đã check-in' : 'Chưa check-in'}{' '}
-                        {status && status !== 'BOOKED' && status !== 'CHECKED_IN'
-                          ? `(${status})`
-                          : ''}
+                        {status === 'CHECKED_OUT'
+                          ? 'Đã check-out'
+                          : status === 'CHECKED_IN'
+                          ? 'Đã check-in'
+                          : 'Chưa check-in'}
                       </span>
+
+                      {/* Hiển thị thời gian check-in nếu đang ở trạng thái CHECKED_IN */}
+                      {status === 'CHECKED_IN' && getCheckInTime(t) && (
+                        <div className="flex items-center text-sm text-gray-600 mt-2">
+                          <Clock className="w-4 h-4 mr-1 text-green-500" />
+                          <span>Lúc: {formatTime(getCheckInTime(t))}</span>
+                        </div>
+                      )}
+
+                      {/* Hiển thị thời gian check-out nếu đang ở trạng thái CHECKED_OUT */}
+                      {status === 'CHECKED_OUT' && getCheckOutTime(t) && (
+                        <div className="flex items-center text-sm text-gray-600 mt-2">
+                          <Clock className="w-4 h-4 mr-1 text-purple-500" />
+                          <span>Lúc: {formatTime(getCheckOutTime(t))}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Nút xem QR: chỉ mở popup, không chuyển trang */}

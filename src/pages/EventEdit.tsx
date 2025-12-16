@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Upload, X, Plus, Trash2 } from 'lucide-react'
+import { Upload, X, Plus, Trash2 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { uploadEventBanner, validateImageFile } from '../utils/imageUpload'
 import { useToast } from '../contexts/ToastContext'
@@ -176,7 +176,13 @@ export default function EventEdit() {
     })
   }
 
+  const MAX_TICKETS = 2 // Maximum number of ticket types allowed
+
   const handleAddTicket = () => {
+    if (tickets.length >= MAX_TICKETS) {
+      showToast('warning', `Tối đa chỉ được thêm ${MAX_TICKETS} loại vé`)
+      return
+    }
     const newTicketName: TicketType = tickets.length % 2 === 0 ? 'VIP' : 'STANDARD'
     setTickets(prev => [...prev, {
       name: newTicketName,
@@ -423,17 +429,9 @@ export default function EventEdit() {
   }
 
   return (
-    <div>
-      <Link
-        to="/dashboard/events"
-        className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Quay lại
-      </Link>
-
-      <div className="bg-white rounded-lg shadow-md p-8 max-w-4xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">
+    <div className="flex justify-center">
+      <div className="bg-white rounded-lg shadow-md p-8 max-w-4xl w-full">
+        <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
           Cập nhật thông tin sự kiện
         </h1>
 
@@ -553,10 +551,15 @@ export default function EventEdit() {
               <button
                 type="button"
                 onClick={handleAddTicket}
-                className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                disabled={tickets.length >= MAX_TICKETS}
+                className={`inline-flex items-center px-4 py-2 text-white text-sm rounded-lg transition-colors ${
+                  tickets.length >= MAX_TICKETS
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Thêm loại vé
+                Thêm loại vé ({tickets.length}/{MAX_TICKETS})
               </button>
             </div>
             

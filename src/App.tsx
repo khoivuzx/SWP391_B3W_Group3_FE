@@ -22,6 +22,7 @@ import PaymentSuccess from './pages/PaymentSuccess.tsx'
 import PaymentFailed from './pages/PaymentFailed.tsx'
 import Speakers from './pages/Speakers.tsx'
 import Venues from './pages/Venues.tsx'
+import SystemConfig from './pages/SystemConfig.tsx'
 import CategoryTickets from './pages/CategoryTickets.tsx'
 import Organizers from './pages/Organizers.tsx'
 import Layout from './components/Layout.tsx'
@@ -72,6 +73,7 @@ function AppRoutes() {
         <Route path="category-tickets" element={<CategoryTickets />} />
         <Route path="organizers" element={<Organizers />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="system-config" element={<SystemConfig />} />
         <Route path="image-upload-test" element={<ImageUploadTest />} />
       </Route>
       <Route
