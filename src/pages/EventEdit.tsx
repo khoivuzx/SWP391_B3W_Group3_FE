@@ -137,7 +137,11 @@ export default function EventEdit() {
   const handleTicketChange = (index: number, field: keyof Ticket, value: string | number) => {
     setTickets(prev => {
       const updated = [...prev]
-      updated[index] = { ...updated[index], [field]: value }
+      // Convert numeric fields to numbers to prevent string concatenation
+      const convertedValue = (field === 'price' || field === 'maxQuantity') 
+        ? (value === '' ? 0 : Number(value))
+        : value
+      updated[index] = { ...updated[index], [field]: convertedValue }
       
       // Validate total maxQuantity against expectedCapacity
       if (field === 'maxQuantity' && expectedCapacity > 0) {
@@ -148,15 +152,8 @@ export default function EventEdit() {
         }
         
         // Calculate total maxQuantity including the new value
-        const totalMaxQuantity = updated.reduce((sum, ticket, i) => {
-          if (i === index) {
-            return Number(sum) + Number(numValue)
-          }
-          // Parse ticket.maxQuantity as number to avoid string concatenation
-          const ticketQty = typeof ticket.maxQuantity === 'string' 
-            ? parseInt(ticket.maxQuantity, 10) 
-            : ticket.maxQuantity
-          return Number(sum) + Number(ticketQty || 0)
+        const totalMaxQuantity = updated.reduce((sum, ticket) => {
+          return sum + (Number(ticket.maxQuantity) || 0)
         }, 0)
         
         if (totalMaxQuantity > expectedCapacity) {
