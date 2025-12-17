@@ -1,18 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { Html5Qrcode } from 'html5-qrcode'
-import { Scan, CheckCircle, XCircle, Search } from 'lucide-react'
+import { Scan, CheckCircle, XCircle, Search, LogIn, LogOut } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
+
+type TabType = 'checkin' | 'checkout'
 
 export default function CheckIn() {
   const { user: _user } = useAuth()
   const token =
     typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  
+  const [activeTab, setActiveTab] = useState<TabType>('checkin')
   const [scanning, setScanning] = useState(false)
   const [manualCode, setManualCode] = useState('')
   const scannerRef = useRef<Html5Qrcode | null>(null)
-  const [checkInResult, setCheckInResult] = useState<{
+  const [result, setResult] = useState<{
     success: boolean
     message: string
     registration?: any
@@ -28,11 +32,10 @@ export default function CheckIn() {
           { facingMode: 'environment' },
           {
             fps: 10,
-            // qrbox hơi lớn một chút cho dễ canh vào khung
             qrbox: { width: 280, height: 280 },
           },
           (decodedText) => {
-            processCheckIn(decodedText)
+            processAction(decodedText)
             stopScanning()
           },
           () => {
@@ -52,6 +55,13 @@ export default function CheckIn() {
       }
     }
   }, [scanning])
+
+  // Stop scanning when tab changes
+  useEffect(() => {
+    stopScanning()
+    setResult(null)
+    setManualCode('')
+  }, [activeTab])
 
   const stopScanning = () => {
     if (scannerRef.current) {
@@ -78,20 +88,20 @@ export default function CheckIn() {
     return null
   }
 
-  const processCheckIn = async (qrCode: string) => {
-    setCheckInResult(null)
+  const processAction = async (qrCode: string) => {
+    setResult(null)
 
     if (!token) {
-      setCheckInResult({
+      setResult({
         success: false,
-        message: 'Bạn cần đăng nhập STAFF/ADMIN để thực hiện check-in.',
+        message: `Bạn cần đăng nhập STAFF/ADMIN để thực hiện ${activeTab === 'checkin' ? 'check-in' : 'check-out'}.`,
       })
       return
     }
 
     const ticketId = extractTicketId(qrCode)
     if (!ticketId) {
-      setCheckInResult({
+      setResult({
         success: false,
         message: 'QR không hợp lệ hoặc không đọc được ticketId.',
       })
@@ -99,11 +109,11 @@ export default function CheckIn() {
     }
 
     try {
-      const url = `/api/staff/checkin?ticketId=${encodeURIComponent(
-        String(ticketId),
-      )}`
+      const apiEndpoint = activeTab === 'checkin' 
+        ? `/api/staff/checkin?ticketId=${encodeURIComponent(String(ticketId))}`
+        : `/api/staff/checkout?ticketCode=${encodeURIComponent(String(ticketId))}`
 
-      const res = await fetch(url, {
+      const res = await fetch(apiEndpoint, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -117,52 +127,96 @@ export default function CheckIn() {
       if (!res.ok) {
         const msg =
           (data && (data.error || data.message)) ||
-          `Check-in thất bại (HTTP ${res.status})`
-        setCheckInResult({
+          `${activeTab === 'checkin' ? 'Check-in' : 'Check-out'} thất bại (HTTP ${res.status})`
+        setResult({
           success: false,
           message: msg,
         })
         return
       }
 
-      setCheckInResult({
-        success: true,
-        message: data.message || 'Check-in thành công',
-        registration: {
-          ticketId: data.ticketId,
-          checkedInAt: data.checkinTime,
-        },
-      })
+      // Handle checkout response (may have results array)
+      if (activeTab === 'checkout' && data.results && data.results.length > 0) {
+        const firstResult = data.results[0]
+        setResult({
+          success: data.success || firstResult.success,
+          message: data.message || firstResult.message || 'Check-out thành công',
+          registration: {
+            ticketId: firstResult.ticketId,
+            checkedOutAt: firstResult.checkoutTime,
+            eventName: firstResult.eventName,
+          },
+        })
+      } else {
+        setResult({
+          success: true,
+          message: data.message || `${activeTab === 'checkin' ? 'Check-in' : 'Check-out'} thành công`,
+          registration: {
+            ticketId: data.ticketId,
+            checkedInAt: data.checkinTime,
+            checkedOutAt: data.checkoutTime,
+          },
+        })
+      }
     } catch (error) {
       console.error(error)
-      setCheckInResult({
+      setResult({
         success: false,
         message: 'Lỗi kết nối API',
       })
     }
   }
 
-  const handleManualCheckIn = () => {
+  const handleManualAction = () => {
     if (manualCode.trim()) {
-      processCheckIn(manualCode.trim())
+      processAction(manualCode.trim())
       setManualCode('')
     }
   }
 
   const resetResult = () => {
-    setCheckInResult(null)
+    setResult(null)
   }
+
+  const isCheckIn = activeTab === 'checkin'
+  const actionLabel = isCheckIn ? 'Check-in' : 'Check-out'
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">
-        Check-in sự kiện
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">
+        Check-in / Check-out sự kiện
       </h1>
+
+      {/* Tabs */}
+      <div className="flex bg-gray-100 rounded-lg p-1 mb-6 max-w-md">
+        <button
+          onClick={() => setActiveTab('checkin')}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === 'checkin'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <LogIn className="w-5 h-5" />
+          Check-in
+        </button>
+        <button
+          onClick={() => setActiveTab('checkout')}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === 'checkout'
+              ? 'bg-white text-purple-600 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <LogOut className="w-5 h-5" />
+          Check-out
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Scanner Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">Quét mã QR</h2>
+          <h2 className="text-xl font-semibold mb-4">Quét mã QR - {actionLabel}</h2>
 
           {!scanning ? (
             <div className="space-y-4">
@@ -171,10 +225,14 @@ export default function CheckIn() {
                   resetResult()
                   setScanning(true)
                 }}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                className={`w-full py-3 rounded-lg transition-colors flex items-center justify-center text-white ${
+                  isCheckIn 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-purple-600 hover:bg-purple-700'
+                }`}
               >
                 <Scan className="w-5 h-5 mr-2" />
-                Bắt đầu quét
+                Bắt đầu quét {actionLabel}
               </button>
 
               <div className="relative">
@@ -196,14 +254,16 @@ export default function CheckIn() {
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value)}
                     placeholder="Nhập ticketId hoặc nội dung QR"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent ${
+                      isCheckIn ? 'focus:ring-blue-500' : 'focus:ring-purple-500'
+                    }`}
                     onKeyDown={(e) =>
-                      e.key === 'Enter' && handleManualCheckIn()
+                      e.key === 'Enter' && handleManualAction()
                     }
                   />
                   <button
-                    onClick={handleManualCheckIn}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                    onClick={handleManualAction}
+                    className="px-4 py-2 text-white rounded-lg bg-gray-600 hover:bg-gray-700"
                   >
                     <Search className="w-5 h-5" />
                   </button>
@@ -223,18 +283,28 @@ export default function CheckIn() {
 
                 {/* Overlay khung vuông để canh QR */}
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="relative w-64 h-64 rounded-xl border-2 border-green-400/80">
+                  <div className={`relative w-64 h-64 rounded-xl border-2 ${
+                    isCheckIn ? 'border-green-400/80' : 'border-purple-400/80'
+                  }`}>
                     {/* 4 góc nổi bật */}
-                    <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-green-400 rounded-tl-xl" />
-                    <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-green-400 rounded-tr-xl" />
-                    <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-green-400 rounded-bl-xl" />
-                    <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-green-400 rounded-br-xl" />
+                    <div className={`absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 rounded-tl-xl ${
+                      isCheckIn ? 'border-green-400' : 'border-purple-400'
+                    }`} />
+                    <div className={`absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 rounded-tr-xl ${
+                      isCheckIn ? 'border-green-400' : 'border-purple-400'
+                    }`} />
+                    <div className={`absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 rounded-bl-xl ${
+                      isCheckIn ? 'border-green-400' : 'border-purple-400'
+                    }`} />
+                    <div className={`absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 rounded-br-xl ${
+                      isCheckIn ? 'border-green-400' : 'border-purple-400'
+                    }`} />
                   </div>
                 </div>
 
                 {/* Hướng dẫn nhỏ ở dưới */}
                 <div className="absolute bottom-4 inset-x-4 bg-black/60 text-white text-sm text-center rounded-lg px-3 py-2">
-                  Đưa mã QR vào trong khung xanh và giữ máy ổn định
+                  Đưa mã QR vào trong khung và giữ máy ổn định để {actionLabel.toLowerCase()}
                 </div>
               </div>
 
@@ -253,53 +323,81 @@ export default function CheckIn() {
 
         {/* Result Section */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">Kết quả check-in</h2>
+          <h2 className="text-xl font-semibold mb-4">Kết quả {actionLabel}</h2>
 
-          {!checkInResult ? (
+          {!result ? (
             <div className="text-center py-12 text-gray-500">
               <Scan className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p>Chưa có kết quả check-in</p>
+              <p>Chưa có kết quả {actionLabel.toLowerCase()}</p>
               <p className="text-sm mt-2">
                 Quét mã QR hoặc nhập mã thủ công để bắt đầu
               </p>
             </div>
           ) : (
             <div className="space-y-4">
-              {checkInResult.success ? (
+              {result.success ? (
                 <div className="text-center py-6">
-                  <CheckCircle className="w-16 h-16 mx-auto mb-4 text-green-500" />
-                  <p className="text-xl font-semibold text-green-600 mb-2">
-                    {checkInResult.message}
+                  <CheckCircle className={`w-16 h-16 mx-auto mb-4 ${
+                    isCheckIn ? 'text-green-500' : 'text-purple-500'
+                  }`} />
+                  <p className={`text-xl font-semibold mb-2 ${
+                    isCheckIn ? 'text-green-600' : 'text-purple-600'
+                  }`}>
+                    {result.message}
                   </p>
                 </div>
               ) : (
                 <div className="text-center py-6">
                   <XCircle className="w-16 h-16 mx-auto mb-4 text-red-500" />
                   <p className="text-xl font-semibold text-red-600 mb-2">
-                    {checkInResult.message}
+                    {result.message}
                   </p>
                 </div>
               )}
 
-              {checkInResult.registration && (
+              {result.registration && (
                 <div className="border-t pt-4 space-y-3">
-                  {checkInResult.registration.ticketId && (
+                  {result.registration.ticketId && (
                     <div>
                       <p className="text-sm text-gray-600">Ticket ID:</p>
                       <p className="font-medium">
-                        {checkInResult.registration.ticketId}
+                        {result.registration.ticketId}
                       </p>
                     </div>
                   )}
 
-                  {checkInResult.registration.checkedInAt && (
+                  {result.registration.eventName && (
+                    <div>
+                      <p className="text-sm text-gray-600">Sự kiện:</p>
+                      <p className="font-medium">
+                        {result.registration.eventName}
+                      </p>
+                    </div>
+                  )}
+
+                  {result.registration.checkedInAt && (
                     <div>
                       <p className="text-sm text-gray-600">
                         Thời gian check-in:
                       </p>
                       <p className="font-medium">
                         {format(
-                          new Date(checkInResult.registration.checkedInAt),
+                          new Date(result.registration.checkedInAt),
+                          'dd/MM/yyyy HH:mm:ss',
+                          { locale: vi },
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  {result.registration.checkedOutAt && (
+                    <div>
+                      <p className="text-sm text-gray-600">
+                        Thời gian check-out:
+                      </p>
+                      <p className="font-medium">
+                        {format(
+                          new Date(result.registration.checkedOutAt),
                           'dd/MM/yyyy HH:mm:ss',
                           { locale: vi },
                         )}
@@ -311,13 +409,44 @@ export default function CheckIn() {
 
               <button
                 onClick={resetResult}
-                className="w-full mt-4 bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700"
+                className="w-full mt-4 text-white py-2 rounded-lg bg-gray-600 hover:bg-gray-700"
               >
-                Check-in tiếp theo
+                {actionLabel} tiếp theo
               </button>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Info box */}
+      <div className={`mt-6 p-4 rounded-lg border ${
+        isCheckIn 
+          ? 'bg-blue-50 border-blue-200' 
+          : 'bg-purple-50 border-purple-200'
+      }`}>
+        <h3 className={`font-semibold mb-2 ${
+          isCheckIn ? 'text-blue-800' : 'text-purple-800'
+        }`}>
+          Hướng dẫn {actionLabel}
+        </h3>
+        <ul className={`text-sm space-y-1 ${
+          isCheckIn ? 'text-blue-700' : 'text-purple-700'
+        }`}>
+          {isCheckIn ? (
+            <>
+              <li>• Quét mã QR trên vé của người tham dự để check-in</li>
+              <li>• Hoặc nhập ID vé thủ công nếu không quét được</li>
+              <li>• Mỗi vé chỉ có thể check-in một lần</li>
+            </>
+          ) : (
+            <>
+              <li>• Quét mã QR trên vé để check-out khi người tham dự rời sự kiện</li>
+              <li>• Hoặc nhập ID vé thủ công nếu không quét được</li>
+              <li>• Chỉ có thể check-out sau khi đã check-in</li>
+              <li>• Check-out chỉ khả dụng sau thời gian quy định (cấu hình hệ thống)</li>
+            </>
+          )}
+        </ul>
       </div>
     </div>
   )

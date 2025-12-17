@@ -182,7 +182,7 @@ export default function Events() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {upcomingEvents.map((event) => (
-                      <div key={event.eventId} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                      <div key={event.eventId} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
                         {event.bannerUrl && (
                           <img
                             src={event.bannerUrl}
@@ -190,13 +190,13 @@ export default function Events() {
                             className="w-full h-48 object-cover"
                           />
                         )}
-                        <div className="p-6">
+                        <div className="p-6 flex flex-col flex-grow">
                           <div className="flex items-start justify-between mb-2">
-                            <h3 className="text-xl font-semibold text-gray-900 flex-1">
+                            <h3 className="text-xl font-semibold text-gray-900 flex-1 line-clamp-2 min-h-[3.5rem]">
                               {event.title}
                             </h3>
                             {isOrganizer && (
-                              <div className="flex space-x-2 ml-2">
+                              <div className="flex space-x-2 ml-2 flex-shrink-0">
                                 <Link
                                   to={`/dashboard/events/${event.eventId}/edit`}
                                   className="p-1 text-blue-600 hover:bg-blue-50 rounded"
@@ -214,45 +214,47 @@ export default function Events() {
                             )}
                           </div>
 
-                          <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                          <p className="text-gray-600 text-sm mb-4 line-clamp-2 min-h-[2.5rem]">
                             {event.description}
                           </p>
 
-                          <div className="space-y-2 mb-4">
+                          <div className="space-y-2 mb-4 flex-grow">
                             <div className="flex items-center text-sm text-gray-600">
-                              <Calendar className="w-4 h-4 mr-2" />
+                              <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
                               {format(new Date(event.startTime), 'dd/MM/yyyy HH:mm', { locale: vi })}
                             </div>
                             <div className="flex items-center text-sm text-gray-600">
-                              <MapPin className="w-4 h-4 mr-2" />
-                              {event.venueLocation || event.location || 'Chưa xác định'}
+                              <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                              <span className="line-clamp-1">{event.venueLocation || event.location || 'Chưa xác định'}</span>
                             </div>
                             <div className="flex items-center text-sm text-gray-600">
-                              <Users className="w-4 h-4 mr-2" />
+                              <Users className="w-4 h-4 mr-2 flex-shrink-0" />
                               {event.maxSeats} chỗ
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between mb-4">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                event.status === 'OPEN'
-                                  ? 'bg-green-100 text-green-800'
-                                  : event.status === 'CLOSED'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}
-                            >
-                              {event.status === 'OPEN' ? 'Đang mở' : event.status === 'CLOSED' ? 'Đã đóng' : event.status}
-                            </span>
-                          </div>
+                          <div className="mt-auto">
+                            <div className="flex items-center justify-between mb-4">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  event.status === 'OPEN'
+                                    ? 'bg-green-100 text-green-800'
+                                    : event.status === 'CLOSED'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                {event.status === 'OPEN' ? 'Đang mở' : event.status === 'CLOSED' ? 'Đã đóng' : event.status}
+                              </span>
+                            </div>
 
-                          <button
-                            onClick={() => handleEventClick(event)}
-                            className="w-full text-center bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                          >
-                            Xem chi tiết
-                          </button>
+                            <button
+                              onClick={() => handleEventClick(event)}
+                              className="w-full text-center bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              Xem chi tiết
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -269,7 +271,7 @@ export default function Events() {
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {pastEvents.map((event) => (
-                      <div key={event.eventId} className="bg-gray-50 rounded-lg shadow-sm overflow-hidden opacity-75 hover:opacity-90 transition-opacity">
+                      <div key={event.eventId} className="bg-gray-50 rounded-lg shadow-sm overflow-hidden opacity-75 hover:opacity-90 transition-opacity flex flex-col h-full">
                         {event.bannerUrl && (
                           <img
                             src={event.bannerUrl}
@@ -277,13 +279,13 @@ export default function Events() {
                             className="w-full h-48 object-cover"
                           />
                         )}
-                        <div className="p-6">
+                        <div className="p-6 flex flex-col flex-grow">
                           <div className="flex items-start justify-between mb-2">
-                            <h3 className="text-xl font-semibold text-gray-600 flex-1">
+                            <h3 className="text-xl font-semibold text-gray-600 flex-1 line-clamp-2 min-h-[3.5rem]">
                               {event.title}
                             </h3>
                             {isOrganizer && (
-                              <div className="flex space-x-2 ml-2">
+                              <div className="flex space-x-2 ml-2 flex-shrink-0">
                                 <Link
                                   to={`/dashboard/events/${event.eventId}/edit`}
                                   className="p-1 text-gray-400 hover:bg-gray-100 rounded"
@@ -301,38 +303,40 @@ export default function Events() {
                             )}
                           </div>
 
-                          <p className="text-gray-500 text-sm mb-4 line-clamp-2">
+                          <p className="text-gray-500 text-sm mb-4 line-clamp-2 min-h-[2.5rem]">
                             {event.description}
                           </p>
 
-                          <div className="space-y-2 mb-4">
+                          <div className="space-y-2 mb-4 flex-grow">
                             <div className="flex items-center text-sm text-gray-500">
-                              <Calendar className="w-4 h-4 mr-2" />
+                              <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
                               {format(new Date(event.startTime), 'dd/MM/yyyy HH:mm', { locale: vi })}
                             </div>
                             <div className="flex items-center text-sm text-gray-500">
-                              <MapPin className="w-4 h-4 mr-2" />
-                              {event.venueLocation || event.location || 'Chưa xác định'}
+                              <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                              <span className="line-clamp-1">{event.venueLocation || event.location || 'Chưa xác định'}</span>
                             </div>
                             <div className="flex items-center text-sm text-gray-500">
-                              <Users className="w-4 h-4 mr-2" />
+                              <Users className="w-4 h-4 mr-2 flex-shrink-0" />
                               {event.maxSeats} chỗ
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between mb-4">
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
-                              Đã kết thúc
-                            </span>
-                          </div>
+                          <div className="mt-auto">
+                            <div className="flex items-center justify-between mb-4">
+                              <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
+                                Đã kết thúc
+                              </span>
+                            </div>
 
-                          <button
-                            onClick={() => handleEventClick(event)}
-                            className="w-full text-center bg-gray-400 text-white py-2 rounded-lg opacity-50 cursor-not-allowed"
-                            disabled
-                          >
-                            Xem chi tiết
-                          </button>
+                            <button
+                              onClick={() => handleEventClick(event)}
+                              className="w-full text-center bg-gray-400 text-white py-2 rounded-lg opacity-50 cursor-not-allowed"
+                              disabled
+                            >
+                              Xem chi tiết
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
