@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { GraduationCap } from 'lucide-react'
 import axios from 'axios'
 import ReCAPTCHA from 'react-google-recaptcha'
+import { useToast } from '../contexts/ToastContext'
 import fptLogo from '../assets/fpt-logo.png'
 import fptCampus from '../assets/dai-hoc-fpt-tp-hcm-1.jpeg'
 
@@ -31,6 +32,7 @@ const RECAPTCHA_SITE_KEY = '6LeVFSUsAAAAAMas_aThh1RZtxiGjWgRquLuAoTU' // Test ke
 const USE_REAL_RECAPTCHA = true // Đổi thành true khi đã có Site Key thật
 
 export default function Register() {
+  const { showToast } = useToast()
   const [isOtpSent, setIsOtpSent] = useState(false)
   const [otpCountdown, setOtpCountdown] = useState(0)
   const [formData, setFormData] = useState<FormData>({
