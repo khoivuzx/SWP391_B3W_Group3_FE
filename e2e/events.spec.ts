@@ -1,23 +1,29 @@
 /**
- * TC-003, TC-004: Event Request Management E2E Tests
- * Tests complete event request workflow: creation, viewing, and staff approval
+ * TC-002, TC-003: Event Request Management E2E Tests
+ * Split into separate tests for better organization and debugging
  */
 
 import { test, expect } from '@playwright/test';
 import { TEST_USERS, login } from './helpers';
 
+// Shared test data
+let eventTitle: string;
+
 test.describe('Event Request Management', () => {
   
-  test('TC-003/004: Complete event request flow - create, view, approve', async ({ page }) => {
-    // Prerequisite: Create an event request first
+  test('TC-002.1: Organizer creates event request', async ({ page }) => {
+    // Login as organizer
     await login(page, 'organizer');
     await page.waitForLoadState('networkidle');
+    
+    // Navigate to create event page
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
     await page.click('button:has-text("Tạo sự kiện"), a:has-text("Tạo sự kiện")');
     
+    // Fill event request form
     const timestamp = Date.now();
-    const eventTitle = `E2E Approval Test ${timestamp}`;
+    eventTitle = `E2E Test ${timestamp}`;
     
     await page.fill('input[name="title"]', eventTitle);
     await page.fill('textarea[name="description"]', 'Test event for approval flow');
@@ -27,111 +33,109 @@ test.describe('Event Request Management', () => {
     await page.fill('input[name="expectedParticipants"]', '30');
     await page.click('button[type="submit"]');
     
-    // Wait for redirect (toast appears briefly then disappears)
+    // Verify redirect and request appears
     await page.waitForURL(/\/dashboard\/event-requests/, { timeout: 10000 });
     await expect(page.locator(`text="${eventTitle}"`)).toBeVisible({ timeout: 5000 });
     
     // BREAKPOINT 1: Organizer viewing their newly created request
     await page.pause();
+  });
+  
+  test('TC-002.2: Staff approves event request', async ({ page }) => {
+    // Prerequisite: Use the event created in previous test
+    const testEventTitle = 'E2E Test'; // Partial match to find latest
     
-    // Step 1: Login as staff
+    // Login as staff
     await page.goto('/login');
     await login(page, 'staff');
     await page.waitForLoadState('networkidle');
     
-    // Step 2: Navigate to event requests and find the pending request
+    // Navigate to event requests
     await page.goto('/dashboard/event-requests');
     await page.waitForLoadState('networkidle');
-    await expect(page.locator(`text="${eventTitle}"`)).toBeVisible({ timeout: 5000 });
+    
+    // Find the most recent test event (starts with "E2E Test")
+    const requestRow = page.locator(`text=/E2E Test/`).first().locator('..');
+    await expect(requestRow).toBeVisible({ timeout: 5000 });
     
     // BREAKPOINT 2: Staff viewing the pending request
     await page.pause();
     
-    // Step 3: Click on the request to view details (if needed) or approve directly
-    const requestRow = page.locator(`text="${eventTitle}"`).locator('..');
-    
-    // Step 4: Click approve button to open modal
+    // Click approve button to open modal
     const approveButton = requestRow.locator('button:has-text("Duyệt")').first();
     await approveButton.click();
     
-    // Step 5: Wait for the approval modal and click the confirm button
+    // Wait for approval modal and confirm
     await expect(page.getByRole('heading', { name: 'Duyệt yêu cầu' })).toBeVisible({ timeout: 5000 });
     
-    // Click the confirm "Duyệt" button in the modal
     const modalApproveButton = page.locator('div').filter({ hasText: 'Hủy' }).locator('button:has-text("Duyệt")').last();
     await modalApproveButton.click();
     
-    // Wait for modal to close (toast appears briefly then disappears)
+    // Wait for modal to close
     await expect(page.getByRole('heading', { name: 'Duyệt yêu cầu' })).toBeHidden({ timeout: 10000 });
     
-    // Step 6: Staff verifies the approved request is still in "Chờ" tab (waiting for organizer to complete)
+    // Verify status changed to "Chờ Cập Nhật Thông Tin"
     await page.goto('/dashboard/event-requests');
     await page.waitForLoadState('networkidle');
-    // Should be in "Chờ" tab by default, status changed to "Chờ Cập Nhật Thông Tin"
-    await expect(page.locator(`text="${eventTitle}"`)).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(`text=/E2E Test/`).first()).toBeVisible({ timeout: 5000 });
     
-    // BREAKPOINT 3: Staff seeing the request has been updated (status changed)
+    // BREAKPOINT 3: Staff seeing the request has been updated
     await page.pause();
+  });
+  
+  test('TC-003: Organizer completes event details', async ({ page }) => {
+    // Prerequisite: Event request has been approved
+    const testEventTitle = 'E2E Test';
     
-    // Step 7: Login as organizer and verify they can see the approved status
+    // Login as organizer
     await page.goto('/login');
     await login(page, 'organizer');
     await page.waitForLoadState('networkidle');
     
+    // Navigate to event requests
     await page.goto('/dashboard/event-requests');
     await page.waitForLoadState('networkidle');
-    await expect(page.locator(`text="${eventTitle}"`)).toBeVisible({ timeout: 5000 });
     
-    // Verify the status shows as approved (now need update)
-    const organizerRequestRow = page.locator(`text="${eventTitle}"`).locator('..');
-    await expect(organizerRequestRow.locator('text=/Chờ cập nhật thông tin/i')).toBeVisible();
+    // Find approved request with "Chờ cập nhật thông tin" status
+    const requestRow = page.locator(`text=/E2E Test/`).first().locator('..');
+    await expect(requestRow.locator('text=/Chờ cập nhật thông tin/i')).toBeVisible({ timeout: 5000 });
     
     // BREAKPOINT 4: Organizer viewing the approved request
     await page.pause();
     
-    // Step 8: Click on the request to open detail modal
-    await page.click(`text="${eventTitle}"`);
-    
-    // Wait for modal to appear
+    // Click on request to open modal and navigate to edit page
+    await page.locator(`text=/E2E Test/`).first().click();
     await page.waitForLoadState('networkidle');
-    
-    // Click "Cập nhật thông tin" button in the modal to navigate to edit page
     await page.click('button:has-text("Cập nhật thông tin")');
     await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(/\/dashboard\/events\/\d+\/edit/);
     
-    // Step 9: Fill speaker information
-    // Find speaker section and fill inputs by their position/label
+    // Fill speaker information
     const speakerSection = page.locator('text="Thông tin diễn giả"').locator('..');
     await speakerSection.locator('label:has-text("Họ và tên")').locator('..').locator('input').fill('Dr. Nguyen Van A');
     await speakerSection.locator('label:has-text("Tiểu sử")').locator('..').locator('textarea').fill('Chuyên gia công nghệ với hơn 10 năm kinh nghiệm trong lĩnh vực AI và Machine Learning');
     await speakerSection.locator('label:has-text("Email")').locator('..').locator('input').fill('speaker@example.com');
     await speakerSection.locator('label:has-text("Số điện thoại")').locator('..').locator('input').fill('0901234567');
-    // Skip avatar upload
     
-    // Step 10: Fill VIP ticket information (first ticket)
+    // Fill VIP ticket (10 seats)
     const vipTicket = page.locator('.border.border-gray-200.rounded-lg').first();
     await vipTicket.locator('label:has-text("Mô tả")').locator('..').locator('textarea').fill('Vé VIP bao gồm chỗ ngồi hàng đầu và phần quà đặc biệt');
     await vipTicket.locator('label:has-text("Giá (VNĐ)")').locator('..').locator('input').fill('200000');
     await vipTicket.locator('label:has-text("Số lượng tối đa")').locator('..').locator('input').fill('10');
     
-    // Step 11: Fill STANDARD ticket information (second ticket)
+    // Fill STANDARD ticket (20 seats)
     const standardTicket = page.locator('.border.border-gray-200.rounded-lg').nth(1);
     await standardTicket.locator('label:has-text("Mô tả")').locator('..').locator('textarea').fill('Vé tiêu chuẩn với chỗ ngồi thoải mái');
     await standardTicket.locator('label:has-text("Giá (VNĐ)")').locator('..').locator('input').fill('100000');
     await standardTicket.locator('label:has-text("Số lượng tối đa")').locator('..').locator('input').fill('20');
     
-    // Step 12: Upload banner image
+    // Upload banner image
     const bannerPath = 'c:\\Users\\Ad\\Documents\\GitHub\\SWP391_B3W_Group3_FE\\src\\assets\\dai-hoc-fpt-tp-hcm-1.jpeg';
     await page.setInputFiles('input#banner-upload', bannerPath);
-    
-    // Wait for image preview to load
     await page.waitForTimeout(1000);
     
-    // Step 13: Submit the form
+    // Submit form
     await page.click('button:has-text("Cập nhật sự kiện")');
-    
-    // Wait for success (URL redirect or success message)
     await page.waitForLoadState('networkidle');
     
     // BREAKPOINT 5: Final inspect after event update
