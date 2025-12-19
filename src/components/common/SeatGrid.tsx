@@ -17,9 +17,12 @@ interface SeatGridProps {
   selectedSeats?: Seat[]
   onSeatSelect: (seat: Seat | null) => void
   maxReached?: boolean
+  // When true the entire grid is read-only (no interaction). Useful when
+  // the event has already ended or selection should be disabled.
+  disabled?: boolean
 }
 
-export function SeatGrid({ seats, loading = false, selectedSeats = [], onSeatSelect, maxReached = false }: SeatGridProps) {
+export function SeatGrid({ seats, loading = false, selectedSeats = [], onSeatSelect, maxReached = false, disabled = false }: SeatGridProps) {
   const [error] = useState<string | null>(null)
 
   if (loading) {
@@ -68,25 +71,28 @@ export function SeatGrid({ seats, loading = false, selectedSeats = [], onSeatSel
     return grid
   }
 
-  const getSeatColor = (seat: Seat, isSelected: boolean) => {
+  const getSeatColor = (seat: Seat, isSelected: boolean, gridDisabled: boolean = false) => {
+    // If grid is disabled (e.g., event ended) and seat is not selected,
+    // show faded/unavailable appearance for all seats.
+    if (gridDisabled && !isSelected) {
+      return 'border-gray-200 bg-white cursor-not-allowed text-transparent'
+    }
+
     if (isSelected) return 'border-blue-600 bg-blue-100 font-semibold'
-    
-    // Nếu đã đạt giới hạn và ghế không được chọn -> trắng
+
+    // If max reached and not selected -> faded
     if (maxReached && !isSelected) {
       return 'border-gray-200 bg-white cursor-not-allowed text-transparent'
     }
-    
-    // BOOKED/RESERVED/OCCUPIED (đã đặt) = Đỏ
+
     if (seat.status === 'BOOKED' || seat.status === 'RESERVED' || seat.status === 'OCCUPIED') {
       return 'border-red-400 bg-red-100 cursor-not-allowed text-red-800'
     }
-    
-    // HOLD (đang đặt) = Xám
+
     if (seat.status === 'HOLD') {
       return 'border-gray-400 bg-gray-200 cursor-not-allowed text-gray-700'
     }
-    
-    // AVAILABLE (tất cả loại ghế) = Xanh lá
+
     return 'border-green-400 bg-green-50 hover:bg-green-100 text-green-800'
   }
 
@@ -160,12 +166,17 @@ export function SeatGrid({ seats, loading = false, selectedSeats = [], onSeatSel
                       <button
                         key={seat.seatId}
                         type="button"
-                        onClick={() => seat.status === 'AVAILABLE' && onSeatSelect(seat)}
-                        disabled={seat.status !== 'AVAILABLE'}
+                        onClick={() => {
+                          // Prevent clicking when grid disabled
+                          if (disabled || seat.status !== 'AVAILABLE') return
+                          onSeatSelect(seat)
+                        }}
+                        // disable when seat unavailable or grid is disabled
+                        disabled={disabled || seat.status !== 'AVAILABLE'}
                         className={`w-12 h-10 border-2 rounded-lg text-xs font-medium transition-colors ${
-                          getSeatColor(seat, selectedSeats.some(s => s.seatId === seat.seatId))
+                          getSeatColor(seat, selectedSeats.some(s => s.seatId === seat.seatId), disabled)
                         }`}
-                        title={`${seat.seatCode} (${seat.seatType}): ${seat.status}`}
+                        title={disabled ? `${seat.seatCode}: sự kiện đã kết thúc` : `${seat.seatCode} (${seat.seatType}): ${seat.status}`}
                       >
                         {maxReached && !selectedSeats.some(s => s.seatId === seat.seatId) ? '' : seat.seatCode}
                       </button>

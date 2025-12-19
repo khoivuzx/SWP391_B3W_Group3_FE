@@ -240,6 +240,9 @@ export function EventDetailModal({
 
   if (!isOpen) return null
 
+  // Compute whether the event has already ended (used to disable seat selection)
+  const eventEnded = event ? new Date() > new Date(event.endTime) : false
+
   // Tính tổng tiền hiển thị ở footer - dựa trên seat type
   let totalAmount = 0
   if (event && selectedSeats.length > 0) {
@@ -507,6 +510,7 @@ export function EventDetailModal({
                       selectedSeats={selectedSeats}
                       onSeatSelect={(seat) => seat && handleSeatSelect(seat)}
                       maxReached={selectedSeats.length >= 4}
+                      disabled={eventEnded}
                     />
                   </div>
                 )}
@@ -547,7 +551,8 @@ export function EventDetailModal({
                     {selectedSeats.length > 0 && (
                       <button
                         onClick={confirmSeats}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        disabled={eventEnded}
+                        className={`px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ${eventEnded ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         Xác nhận đặt ghế
                       </button>
