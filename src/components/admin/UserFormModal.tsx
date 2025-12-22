@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import type { User, CreateUserRequest, UpdateUserRequest } from '../../types/user'
+import type { User, CreateUserRequest, UpdateUserRequest } from '../../types/user.ts'
 
 interface UserFormModalProps {
   isOpen: boolean

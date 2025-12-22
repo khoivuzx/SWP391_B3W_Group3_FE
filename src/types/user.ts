@@ -1,6 +1,5 @@
-/**
- * User type definitions for Admin user management
- */
+export type Role = 'ORGANIZER' | 'STAFF'
+export type Status = 'ACTIVE' | 'INACTIVE'
 
 export interface User {
   userId: number
@@ -8,10 +7,9 @@ export interface User {
   fullName: string
   email: string
   phone: string
-  role: 'ADMIN' | 'ORGANIZER' | 'STAFF' | 'CUSTOMER'
-  status: 'ACTIVE' | 'INACTIVE'
-  createdAt: string
-  updatedAt?: string
+  role: Role
+  status: Status
+  createdAt?: string
 }
 
 export interface CreateUserRequest {
@@ -20,14 +18,14 @@ export interface CreateUserRequest {
   fullName: string
   email: string
   phone: string
-  role: 'ORGANIZER' | 'STAFF'
+  role: Role
 }
 
 export interface UpdateUserRequest {
   userId: number
-  fullName?: string
-  email?: string
-  phone?: string
-  role?: 'ORGANIZER' | 'STAFF'
-  status?: 'ACTIVE' | 'INACTIVE'
+  fullName: string
+  email: string
+  phone: string
+  role: Role
+  status: Status
 }
