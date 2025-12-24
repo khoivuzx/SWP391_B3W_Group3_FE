@@ -58,7 +58,7 @@ export default function AdminDashboard() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'ORGANIZER' | 'STAFF'>('ALL')
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ACTIVE')
 
   useEffect(() => {
     // Always fetch from real API (do not use mock data in dev)
@@ -159,23 +159,30 @@ export default function AdminDashboard() {
   }
 
   const handleUpdateUser = async (data: UpdateUserRequest) => {
-    // Update an existing user
-    // PUT http://localhost:3000/api/admin/users/:userId
-    // Body may include fullName, email, phone, role, status
+    // Update user using the same Admin endpoint (PUT)
+    // PUT http://localhost:3000/api/admin/create-account
+    // Body: { id, fullName, phone, role, status, password }
     try {
       const token = localStorage.getItem('token')
+      // Build payload matching the backend requirement
+      const payload: any = {
+        id: data.userId,
+        fullName: data.fullName,
+        phone: data.phone,
+        role: data.role,
+        status: data.status
+      }
+      // include password if present
+      if ((data as any).password) payload.password = (data as any).password
 
-      const response = await fetch(
-        `http://localhost:3000/api/admin/users/${data.userId}`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(data)
-        }
-      )
+      const response = await fetch('http://localhost:3000/api/admin/create-account', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
 
       const result = await response.json()
 
@@ -194,29 +201,31 @@ export default function AdminDashboard() {
   }
 
   const performDeleteUser = async (userId: number) => {
-    // Delete a user by id
-    // DELETE http://localhost:3000/api/admin/users/:userId
+    // Soft-delete a user using the admin endpoint (DELETE)
+    // DELETE http://localhost:3000/api/admin/create-account
+    // Body: { id }
     // On success refetches the user list
     try {
       const token = localStorage.getItem('token')
-
-      const response = await fetch(
-        `http://localhost:3000/api/admin/users/${userId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+      // Use query param for DELETE: /api/admin/create-account?id=1
+      const url = `http://localhost:3000/api/admin/create-account?id=${encodeURIComponent(userId)}`
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-      )
+      })
 
-      const result = await response.json()
+      // Some backends may return a message or error
+      const result = await response.json().catch(() => ({}))
 
       if (response.ok) {
-        showToast('success', 'Xóa người dùng thành công')
+        const successMsg = result?.message || result?.msg || result?.success || 'Xóa người dùng thành công'
+        showToast('success', String(successMsg))
         await fetchUsers()
       } else {
-        showToast('error', result.message || 'Xóa người dùng thất bại')
+        const errMsg = result?.error || result?.message || 'Xóa người dùng thất bại'
+        showToast('error', String(errMsg))
       }
     } catch (error) {
       console.error('Error deleting user:', error)

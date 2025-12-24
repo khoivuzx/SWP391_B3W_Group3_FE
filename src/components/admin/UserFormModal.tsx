@@ -217,19 +217,22 @@ export default function UserFormModal({
             <input
               type="email"
               value={formData.email}
-              onChange={e => handleFieldChange('email', e.target.value)}
-              onBlur={() => handleFieldBlur('email')}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
-              disabled={loading}
+                onChange={e => handleFieldChange('email', e.target.value)}
+                onBlur={() => handleFieldBlur('email')}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+                disabled={loading || mode === 'edit'}
               placeholder="user@example.com"
             />
-            {errors.email && (
-              <p className="text-red-500 text-sm mt-1">{errors.email}</p>
-            )}
+              {errors.email && (
+                <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+              )}
+              {mode === 'edit' && (
+                <p className="text-sm italic text-gray-500 mt-1">Email không thể chỉnh sửa</p>
+              )}
           </div>
 
           {/* Password - chỉ hiển thị khi tạo mới */}
-          {mode === 'create' && (
+          {mode === 'create' ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Mật khẩu <span className="text-red-500">*</span>
@@ -246,6 +249,20 @@ export default function UserFormModal({
               {errors.password && (
                 <p className="text-red-500 text-sm mt-1">{errors.password}</p>
               )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mật khẩu (để trống nếu không đổi)
+              </label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={e => handleFieldChange('password', e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300"
+                disabled={loading}
+                placeholder="Để trống nếu không muốn thay đổi mật khẩu"
+              />
             </div>
           )}
 

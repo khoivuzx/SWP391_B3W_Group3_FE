@@ -29,4 +29,5 @@ export interface UpdateUserRequest {
   phone?: string
   role?: 'ADMIN' | 'ORGANIZER' | 'STAFF'
   status?: 'ACTIVE' | 'INACTIVE'
+  password?: string
 }
