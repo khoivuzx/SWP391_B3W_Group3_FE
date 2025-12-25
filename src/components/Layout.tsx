@@ -99,18 +99,7 @@ export default function Layout() {
                   </Link>
                 </>
               )}
-              {isOrganizer && (
-                <Link
-                  to="/dashboard/reports"
-                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                    location.pathname === '/dashboard/reports'
-                      ? 'bg-orange-100 text-orange-600'
-                      : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'
-                  }`}
-                >
-                  Báo cáo
-                </Link>
-              )}
+             
               {!isOrganizer && !isStaff && (
                 <>
                   <Link
@@ -161,7 +150,20 @@ export default function Layout() {
                   Quản lý người dùng
                 </Link>
               )}
+               {(isOrganizer || isAdmin) && (
+                <Link
+                  to="/dashboard/reports"
+                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    location.pathname === '/dashboard/reports'
+                      ? 'bg-orange-100 text-orange-600'
+                      : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'
+                  }`}
+                >
+                  Báo cáo
+                </Link>
+              )}
             </nav>
+
 
             {/* User Info */}
             <div className="hidden md:flex items-center space-x-4">
@@ -243,7 +245,7 @@ export default function Layout() {
                   </Link>
                 </>
               )}
-              {isOrganizer && (
+              {(isOrganizer || isAdmin) && (
                 <Link
                   to="/dashboard/reports"
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"

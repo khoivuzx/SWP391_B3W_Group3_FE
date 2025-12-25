@@ -318,7 +318,7 @@ export default function Reports() {
             if (!seatNumber) seatNumber = findDeepKey(r, ['seat', 'assignedSeat']) ?? null
             let ticketType = resolveFirst(r, ['ticketType', 'type', 'category'])
             if (!ticketType) ticketType = findDeepKey(r, ['ticketName', 'ticket_type']) ?? null
-            const registeredAt = resolveFirst(r, ['registeredAt', 'createdAt', 'created_at']) ?? ''
+            const registeredAt = resolveFirst(r, ['purchaseDate', 'registeredAt', 'createdAt', 'created_at']) ?? ''
             const checkedIn = !!resolveFirst(r, ['checkedIn', 'isCheckedIn', 'checked_in']) || !!findDeepKey(r, ['checkInTime', 'checkinTime'])
             const checkedOut = !!resolveFirst(r, ['checkedOut', 'isCheckedOut', 'checked_out']) || !!findDeepKey(r, ['checkOutTime', 'checkoutTime'])
 
@@ -359,7 +359,7 @@ export default function Reports() {
                   if (!seatNumber) seatNumber = findDeepKey(t, ['seat', 'assignedSeat']) ?? null
                   let ticketType = resolveFirst(t, ['ticketType', 'type', 'category'])
                   if (!ticketType) ticketType = findDeepKey(t, ['ticketName', 'ticket_type']) ?? null
-                  const registeredAt = resolveFirst(t, ['registeredAt', 'createdAt', 'created_at']) ?? ''
+                  const registeredAt = resolveFirst(t, ['purchaseDate', 'registeredAt', 'createdAt', 'created_at']) ?? ''
                   const checkedIn = !!resolveFirst(t, ['checkedIn', 'isCheckedIn', 'checked_in']) || !!findDeepKey(t, ['checkInTime', 'checkinTime'])
                   const checkedOut = !!resolveFirst(t, ['checkedOut', 'isCheckedOut', 'checked_out']) || !!findDeepKey(t, ['checkOutTime', 'checkoutTime'])
 
@@ -608,11 +608,7 @@ export default function Reports() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Báo cáo tham dự</h1>
 
-        {/* Nút xuất báo cáo - hiện tại chỉ UI, chưa gắn handler */}
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          <Download className="w-5 h-5 mr-2" />
-          Xuất báo cáo
-        </button>
+        {/* Export button removed (UI-only) */}
       </div>
 
       {/* ===================== Overall Statistics ===================== */}
@@ -815,6 +811,7 @@ export default function Reports() {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">#</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Ticket ID</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tên</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Ngày mua</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Seat</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Loại vé</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Trạng thái</th>
@@ -830,6 +827,7 @@ export default function Reports() {
                 ) : (
                   registrations.map((r, idx) => {
                     const ticketId = (r as any).ticketId ?? r.id ?? '-'
+                    const registeredAt = (r as any).purchaseDate ?? (r as any).registeredAt ?? r.registeredAt ?? (r as any).createdAt ?? ''
                     const seat = r.seatNumber ?? (r as any).seat ?? '-'
                     const seatType = (r as any).seatType ?? (r as any).ticketType ?? (r as any).type ?? '-'
                     const isCheckedIn = !!r.checkedIn || !!(r as any).isCheckedIn
@@ -842,6 +840,7 @@ export default function Reports() {
                         <td className="px-4 py-3 text-sm text-gray-700">{idx + 1}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{ticketId}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{r.userName ?? '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{registeredAt ? format(new Date(registeredAt), 'Pp', { locale: vi }) : '-'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{seat}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{seatType}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">
