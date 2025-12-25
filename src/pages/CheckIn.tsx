@@ -50,9 +50,9 @@ import { vi } from 'date-fns/locale'
 // =============================================================================
 // ĐỊNH NGHĨA KIỂU DỮ LIỆU (TYPE DEFINITIONS)
 // =============================================================================
-
-type TabType = 'checkin' | 'checkout'
 // Kiểu dữ liệu cho 2 tab: 'checkin' (vào sự kiện) và 'checkout' (ra khỏi sự kiện)
+type TabType = 'checkin' | 'checkout'
+
 
 // =============================================================================
 // COMPONENT CHÍNH: CheckIn
@@ -86,7 +86,7 @@ export default function CheckIn() {
   // Dùng ref thay vì state vì không cần re-render khi thay đổi scanner
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
-  // State lưu kết quả trả về sau khi gọi API check-in/check-out
+  // State lưu kết quả trả về sau khi gọi API check-in/check-out(lưu kết quả để hiển thị)
   // - success: boolean cho biết thành công hay thất bại
   // - message: thông báo hiển thị cho người dùng
   // - registration: dữ liệu chi tiết về vé/sự kiện (tùy chọn)
@@ -108,7 +108,7 @@ export default function CheckIn() {
   useEffect(() => {
     // Chỉ khởi tạo scanner khi đang quét VÀ chưa có instance scanner
     if (scanning && !scannerRef.current) {
-      // Tạo instance Html5Qrcode mới, gắn vào element có id="reader"
+      // Tạo instance Html5Qrcode mới, gắn vào element có id="reader" (Khởi tạo để quét QR)
       const html5QrCode = new Html5Qrcode('reader')
       scannerRef.current = html5QrCode
 
@@ -122,21 +122,8 @@ export default function CheckIn() {
           { fps: 10, qrbox: { width: 280, height: 280 } },
           (decodedText) => {
             // Callback khi quét thành công - nhận được nội dung QR
-            // Use stopScanning() to consistently stop/clear and avoid races
-            if (scannerRef.current) {
-              stopScanning()
-                .then(() => {
-                  processAction(decodedText)
-                })
-                .catch((err) => {
-                  console.error('Error stopping scanner after decode', err)
-                  // Still process the decoded QR even if stopping failed
-                  processAction(decodedText)
-                })
-            } else {
-              setScanning(false)
-              processAction(decodedText)
-            }
+            processAction(decodedText) // Xử lý check-in/check-out
+            stopScanning() // Dừng quét sau khi đã quét được
           },
           () => {},  // Callback khi quét thất bại - bỏ trống vì không cần xử lý
         )
@@ -147,30 +134,12 @@ export default function CheckIn() {
     }
 
     // Cleanup function: chạy khi component unmount hoặc dependency thay đổi
-    // Đảm bảo dừng camera và giải phóng tài nguyên - wait for stop before clear
+    // Đảm bảo dừng camera và giải phóng tài nguyên
     return () => {
       if (scannerRef.current) {
-        const ref = scannerRef.current
-        ref
-          .stop()
-          .then(() => {
-            try {
-              ref.clear()
-            } catch (e) {
-              console.warn('Failed to clear scanner element during cleanup', e)
-            }
-          })
-          .catch((e) => {
-            console.warn('Error stopping scanner during cleanup', e)
-            try {
-              ref.clear()
-            } catch (err) {
-              console.warn('Failed to clear scanner element after stop error', err)
-            }
-          })
-          .finally(() => {
-            if (scannerRef.current === ref) scannerRef.current = null
-          })
+        scannerRef.current.stop().catch(() => {})  // Dừng quét (bỏ qua lỗi nếu có)
+        scannerRef.current.clear()  // Xóa element video khỏi DOM
+        scannerRef.current = null   // Reset ref về null
       }
     }
   }, [scanning])  // Dependency: chỉ chạy lại khi 'scanning' thay đổi
@@ -197,37 +166,13 @@ export default function CheckIn() {
    * Dừng camera scanner và reset state scanning về false
    * Được gọi khi: quét xong, nhấn nút dừng, hoặc chuyển tab
    */
-  const stopScanning = (): Promise<void> => {
-    // Ensure we wait for the scanner to stop before clearing the element.
-    // Set `scanning` to false only after stop/clear completes to avoid
-    // removing the camera UI while the native stream is still active.
+  const stopScanning = () => {
     if (scannerRef.current) {
-      const ref = scannerRef.current
-      return ref
-        .stop()
-        .then(() => {
-          try {
-            ref.clear()
-          } catch (e) {
-            console.warn('Failed to clear scanner element', e)
-          }
-        })
-        .catch((e) => {
-          console.warn('Error stopping scanner', e)
-          try {
-            ref.clear()
-          } catch (err) {
-            console.warn('Failed to clear scanner after stop error', err)
-          }
-        })
-        .finally(() => {
-          if (scannerRef.current === ref) scannerRef.current = null
-          setScanning(false)
-        }) as Promise<void>
+      scannerRef.current.stop().catch(() => {})  // Dừng camera
+      scannerRef.current.clear()                  // Xóa element video
+      scannerRef.current = null                   // Reset ref
     }
-
-    setScanning(false)
-    return Promise.resolve()
+    setScanning(false)  // Cập nhật state
   }
 
   // ===========================================================================
@@ -315,7 +260,7 @@ export default function CheckIn() {
    * @param qrCode - Nội dung QR code hoặc mã nhập tay
    */
   const processAction = async (qrCode: string) => {
-    // Reset kết quả cũ trước khi xử lý
+    // Reset kết quả cũ trước khi xử lý để tránh việc còn tồn tại kết quả cũ 
     setResult(null)
 
     // Kiểm tra đăng nhập - chỉ STAFF/ADMIN mới có token hợp lệ
@@ -329,9 +274,10 @@ export default function CheckIn() {
       return
     }
 
-    // Chuẩn hóa nội dung QR
+    // Chuẩn hóa nội dung QR tránh việc lỗi do ký tự đặc biệt
     const cleaned = normalizeQrText(qrCode)
 
+    //Gọi api check-in/check-out ở BE xử lí
     try {
       // =====================================================================
       // XÂY DỰNG ENDPOINT API DỰA TRÊN TAB VÀ LOẠI VÉ
@@ -506,15 +452,6 @@ export default function CheckIn() {
     setResult(null)
   }
 
-  /**
-   * Xóa kết quả hiện tại và khởi động lại camera để quét vé tiếp theo
-   * Được dùng cho nút "{actionLabel} tiếp theo" để tự động bật camera
-   */
-  const startNext = () => {
-    setResult(null)
-    setScanning(true)
-  }
-
   // ===========================================================================
   // BIẾN TIỆN ÍCH CHO RENDER
   // ===========================================================================
@@ -682,9 +619,9 @@ export default function CheckIn() {
 
               {/* Nút dừng quét */}
               <button
-                onClick={async () => {
-                  await stopScanning() // Tắt camera (await to ensure proper stop/clear)
-                  resetResult()         // Xóa kết quả
+                onClick={() => {
+                  stopScanning()  // Tắt camera
+                  resetResult()   // Xóa kết quả
                 }}
                 className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700"
               >
@@ -808,7 +745,7 @@ export default function CheckIn() {
 
               {/* Nút để tiếp tục check-in/check-out vé tiếp theo */}
               <button
-                onClick={startNext}
+                onClick={resetResult}
                 className="w-full mt-4 text-white py-2 rounded-lg bg-gray-600 hover:bg-gray-700"
               >
                 {actionLabel} tiếp theo

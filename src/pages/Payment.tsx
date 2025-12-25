@@ -110,7 +110,7 @@ export default function Payment() {
 
   /**
    * handlePay - chạy khi user bấm nút “Thanh toán qua VNPay”
-   *
+   * Phần code xử lí khi ấn thanh toán
    * Nhiệm vụ:
    * 1) Validate dữ liệu bắt buộc (eventId, categoryTicketId, seatIds)
    * 2) Check login: lấy userId để backend biết ai đang mua
@@ -195,65 +195,118 @@ export default function Payment() {
     window.location.replace(paymentUrl)
   }
 
-  // Handle wallet payment: submit a POST form so browser will follow backend redirect
-  const handleWalletPay = () => {
-    if (
-      !state.eventId ||
-      !state.categoryTicketId ||
-      !state.seatIds ||
-      state.seatIds.length === 0
-    ) {
-      alert('Thiếu thông tin vé, vui lòng chọn lại vé từ Dashboard.')
-      navigate('/dashboard')
-      return
-    }
+ // ======================
+// XỬ LÝ THANH TOÁN BẰNG VÍ (WALLET)
+// Code xử lí thanh toán nếu chọn dùng ví nội bộ
+// ======================
+// Cách làm: tạo một form POST ẩn và submit
+// → trình duyệt sẽ gửi request POST thật
+// → backend xử lý xong có thể redirect về FE (giống flow VNPay)
+const handleWalletPay = () => {
 
-    const userId = (user as any)?.userId ?? (user as any)?.id
-    if (!userId) {
-      alert('Bạn cần đăng nhập trước khi thanh toán.')
-      navigate('/login')
-      return
-    }
-
-    const params: Record<string, string> = {
-      userId: String(userId),
-      eventId: String(state.eventId),
-      seatIds: state.seatIds.join(','),
-    }
-
-    // create form and submit (full page POST) so backend can redirect to FE success
-    const form = document.createElement('form')
-    form.method = 'POST'
-    form.action = '/api/wallet/pay-ticket'
-    form.style.display = 'none'
-
-    Object.entries(params).forEach(([k, v]) => {
-      const input = document.createElement('input')
-      input.type = 'hidden'
-      input.name = k
-      input.value = v
-      form.appendChild(input)
-    })
-
-    // include token (if available) so backend filters that expect a token can validate
-    const savedToken = token ?? localStorage.getItem('token')
-    if (savedToken) {
-      const t1 = document.createElement('input')
-      t1.type = 'hidden'
-      t1.name = 'token'
-      t1.value = savedToken
-      form.appendChild(t1)
-
-      const t2 = document.createElement('input')
-      t2.type = 'hidden'
-      t2.name = 'authorization'
-      t2.value = `Bearer ${savedToken}`
-      form.appendChild(t2)
-    }
-
-    document.body.appendChild(form)
-    form.submit()
+  // ======================================================
+  // (1) KIỂM TRA THÔNG TIN VÉ CẦN THIẾT
+  // ======================================================
+  // Bắt buộc phải có:
+  // - eventId: sự kiện
+  // - categoryTicketId: loại vé
+  // - seatIds: danh sách ghế (ít nhất 1 ghế)
+  if (
+    !state.eventId ||
+    !state.categoryTicketId ||
+    !state.seatIds ||
+    state.seatIds.length === 0
+  ) {
+    // Nếu thiếu thông tin → báo lỗi và quay về dashboard
+    alert('Thiếu thông tin vé, vui lòng chọn lại vé từ Dashboard.')
+    navigate('/dashboard')
+    return
   }
+
+  // ======================================================
+  // (2) LẤY USER ID TỪ CONTEXT ĐĂNG NHẬP
+  // ======================================================
+  // user có thể lưu userId hoặc id (tuỳ backend)
+  const userId = (user as any)?.userId ?? (user as any)?.id
+
+  // Nếu chưa đăng nhập → bắt login
+  if (!userId) {
+    alert('Bạn cần đăng nhập trước khi thanh toán.')
+    navigate('/login')
+    return
+  }
+
+  // ======================================================
+  // (3) CHUẨN BỊ CÁC THAM SỐ GỬI LÊN BACKEND
+  // ======================================================
+  // Các param này backend sẽ dùng để:
+  // - xác định user
+  // - xác định event
+  // - xác định danh sách ghế cần thanh toán
+  const params: Record<string, string> = {
+    userId: String(userId),
+    eventId: String(state.eventId),
+    seatIds: state.seatIds.join(','), // chuyển mảng ghế thành chuỗi "1,2,3"
+  }
+
+  // ======================================================
+  // (4) TẠO FORM HTML ẨN ĐỂ SUBMIT POST
+  // ======================================================
+  // Không dùng fetch/axios vì:
+  // - backend sẽ redirect
+  // - redirect chỉ hoạt động đúng khi submit form thật
+  const form = document.createElement('form')
+  form.method = 'POST'                      // gửi POST
+  form.action = '/api/wallet/pay-ticket'    // endpoint backend
+  form.style.display = 'none'               // form ẩn, user không thấy
+
+  // ======================================================
+  // (5) GẮN CÁC PARAM VÀO FORM DƯỚI DẠNG INPUT HIDDEN
+  // ======================================================
+  Object.entries(params).forEach(([k, v]) => {
+    const input = document.createElement('input')
+    input.type = 'hidden'   // hidden để user không chỉnh sửa
+    input.name = k          // tên param
+    input.value = v         // giá trị param
+    form.appendChild(input)
+  })
+
+  // ======================================================
+  // (6) ĐÍNH KÈM TOKEN ĐỂ BACKEND XÁC THỰC
+  // ======================================================
+  // Token có thể lấy từ:
+  // - state (context)
+  // - localStorage (fallback)
+  const savedToken = token ?? localStorage.getItem('token')
+
+  if (savedToken) {
+    // Gửi token dạng field "token"
+    // → một số backend filter đọc token từ body
+    const t1 = document.createElement('input')
+    t1.type = 'hidden'
+    t1.name = 'token'
+    t1.value = savedToken
+    form.appendChild(t1)
+
+    // Gửi token dạng Authorization Bearer
+    // → tương thích với filter JWT chuẩn
+    const t2 = document.createElement('input')
+    t2.type = 'hidden'
+    t2.name = 'authorization'
+    t2.value = `Bearer ${savedToken}`
+    form.appendChild(t2)
+  }
+
+  // ======================================================
+  // (7) SUBMIT FORM
+  // ======================================================
+  // - Trình duyệt gửi POST thật tới backend
+  // - Backend xử lý thanh toán ví
+  // - Backend redirect về FE success/fail page
+  document.body.appendChild(form)
+  form.submit()
+}
+
 
   // ======================== RENDER UI ========================
 
