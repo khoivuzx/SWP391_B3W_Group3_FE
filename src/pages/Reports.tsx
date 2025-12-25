@@ -1,36 +1,41 @@
 // src/pages/Reports.tsx
 
-// Import hook React để quản lý state + side-effect
+// ===================== IMPORTS =====================
+
+// React hooks:
+// - useState: lưu state (selectedEventId, dateRange, stats...)
+// - useEffect: chạy side-effect (fetch API khi token / selectedEventId thay đổi)
 import { useState, useEffect } from 'react'
 
-// Import icon từ lucide-react để hiển thị UI dashboard báo cáo
+// Icon UI (dashboard) từ lucide-react
 import { Calendar, Users, CheckCircle, XCircle, Download, Filter } from 'lucide-react'
 
-// Import format ngày giờ từ date-fns để hiển thị đẹp (VN)
+// date-fns: format ngày giờ cho đẹp (dùng locale Việt Nam)
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
 
-// Import các component chart từ recharts để vẽ biểu đồ cột + pie
+// recharts: vẽ biểu đồ cột & tròn (hiện file có chuẩn bị data nhưng chưa render chart ở dưới)
 import {
-  BarChart,            // Biểu đồ cột
-  Bar,                 // Cột
-  XAxis,               // Trục X
-  YAxis,               // Trục Y
-  CartesianGrid,       // Lưới nền
-  Tooltip,             // Tooltip khi hover
-  Legend,              // Chú thích
-  ResponsiveContainer, // Tự co giãn theo container
-  PieChart,            // Biểu đồ tròn
-  Pie,                 // Miếng bánh
-  Cell,                // Tô màu từng miếng
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts'
 
-// Import AuthContext để lấy user (phân quyền, hiển thị theo role...)
+// AuthContext: lấy thông tin user (phân quyền, role...)
+// (Trong file này có lấy user nhưng hiện chưa dùng để chặn quyền)
 import { useAuth } from '../contexts/AuthContext'
 
-// ==== Kiểu dữ liệu (có thể chỉnh lại cho khớp EventStatsDTO nếu cần) ====
+// ===================== TYPES (DTO phía FE) =====================
 
-// EventOption: dữ liệu tối giản của event dùng cho dropdown chọn sự kiện
+// EventOption: dạng gọn để hiển thị dropdown chọn event
 type EventOption = {
   id: number
   title: string
@@ -38,7 +43,7 @@ type EventOption = {
   type?: string
 }
 
-// Registration: dữ liệu từng người đăng ký (dùng nếu muốn hiển thị danh sách chi tiết)
+// Registration: 1 vé / 1 lượt đăng ký (để hiển thị bảng danh sách vé)
 type Registration = {
   id: number
   userName: string
@@ -52,10 +57,14 @@ type Registration = {
   checkedOutAt?: string | null
   ticketType?: string | null
   ticketCode?: string | null
+  status?: string | null
 }
 
-// EventStats: dữ liệu thống kê của 1 event (hoặc để tổng hợp)
-// Chứa tổng đăng ký, check-in, check-out + danh sách registrations (nếu có)
+// EventStats: thống kê cho 1 event (hoặc dùng để tổng hợp)
+// - totalTickets/totalRegistrations: tổng số vé/đăng ký
+// - totalCheckedIn/out: tổng check-in/out
+// - refunded: tổng hoàn tiền
+// - registrations: danh sách vé chi tiết (nếu API trả về)
 type EventStats = {
   eventId: number
   eventTitle: string
@@ -63,44 +72,48 @@ type EventStats = {
   totalTickets: number
   totalCheckedIn: number
   totalCheckedOut: number
-  totalRegistrations?: number // nếu DTO không có thì BE có thể set = totalTickets
+  totalRegistrations?: number
   checkInRate?: string
   checkOutRate?: string
   eventType?: string
+  totalRefunded?: number
+  refundedRate?: string
   registrations?: Registration[]
 }
 
 export default function Reports() {
-  // Lấy user từ AuthContext (có thể dùng để kiểm tra quyền staff/admin)
+  // ===================== AUTH / TOKEN =====================
+
+  // Lấy user từ context (phục vụ phân quyền nếu cần)
   const { user } = useAuth()
 
-  // selectedEventId: event đang chọn trong dropdown (string vì lấy từ <select>)
+  // JWT token để gọi API (lấy từ localStorage; check window để tránh lỗi SSR)
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('token') : null
+
+  // ===================== UI STATE =====================
+
+  // Event đang chọn trong dropdown (string vì lấy từ <select>)
   const [selectedEventId, setSelectedEventId] = useState<string>('')
 
-  // dateRange: khoảng thời gian filter event (start/end dạng yyyy-mm-dd)
+  // Khoảng thời gian lọc sự kiện (YYYY-MM-DD)
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
 
-  // events: danh sách sự kiện để chọn
+  // Danh sách event load từ API /api/events
   const [events, setEvents] = useState<EventOption[]>([])
 
-  // eventsLoading/eventsError: trạng thái loading/error khi fetch events
+  // Trạng thái loading/error cho việc load events
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventsError, setEventsError] = useState<string | null>(null)
 
-  // selectedStats: thống kê chi tiết của 1 event đang chọn
+  // Thống kê chi tiết của event đang chọn (API /api/events/stats)
   const [selectedStats, setSelectedStats] = useState<EventStats | null>(null)
 
-  // statsLoading/statsError: trạng thái loading/error khi fetch stats của 1 event
+  // Trạng thái loading/error cho việc load stats event
   const [statsLoading, setStatsLoading] = useState(false)
   const [statsError, setStatsError] = useState<string | null>(null)
 
-  /**
-   * aggregatedStats: thống kê tổng hợp nhiều sự kiện (sau khi user lọc theo dateRange
-   * và bấm "Lọc và tính tổng")
-   *
-   * totalNotCheckedIn: tổng đăng ký - tổng check-in
-   * eventsCount: số sự kiện được tổng hợp
-   */
+  // Thống kê tổng hợp nhiều event theo dateRange (khi bấm “Lọc và tính tổng”)
   const [aggregatedStats, setAggregatedStats] = useState<{
     totalRegistrations: number
     totalCheckedIn: number
@@ -109,18 +122,17 @@ export default function Reports() {
     eventsCount: number
   } | null>(null)
 
-  // aggregateLoading: trạng thái loading khi đang tổng hợp (gọi stats nhiều event)
+  // Loading trạng thái tổng hợp (gọi nhiều request /api/events/stats)
   const [aggregateLoading, setAggregateLoading] = useState(false)
 
-  /**
-   * token: JWT từ localStorage để gọi API có Authorization Bearer
-   * typeof window !== 'undefined' để tránh lỗi nếu SSR
-   */
-  const token =
-    typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  // ===================== HELPERS (CHUẨN HÓA DATA) =====================
 
-  // ================== 1. Load danh sách event ==================
-  // Helper: try multiple paths (supports nested e.g. 'user.email') and return first defined
+  /**
+   * resolveFirst:
+   * - nhận obj và danh sách paths dạng "a.b.c"
+   * - trả về giá trị đầu tiên tìm được (khác undefined/null)
+   * - dùng để map dữ liệu từ nhiều kiểu DTO khác nhau của BE
+   */
   const resolveFirst = (obj: any, paths: string[]) => {
     for (const p of paths) {
       const parts = p.split('.')
@@ -139,7 +151,12 @@ export default function Reports() {
     return undefined
   }
 
-  // Deep finder: search any nested key matching candidate names (normalized)
+  /**
+   * findDeepKey:
+   * - DFS tìm sâu trong object để kiếm key “na ná” với candidates
+   * - normalize key: lowercase + bỏ ký tự đặc biệt
+   * - dùng khi BE trả dữ liệu lồng nhiều lớp hoặc key không ổn định
+   */
   const findDeepKey = (obj: any, candidates: string[]) => {
     if (!obj || typeof obj !== 'object') return undefined
     const normalize = (s: string) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -150,19 +167,24 @@ export default function Reports() {
       if (!node || typeof node !== 'object') return undefined
       if (seen.has(node)) return undefined
       seen.add(node)
+
       for (const key of Object.keys(node)) {
         try {
           const val = node[key]
           const kn = normalize(key)
+
+          // match gần đúng: kn === cn hoặc kn chứa cn hoặc cn chứa kn
           for (const cn of candNorm) {
             if (kn === cn || kn.includes(cn) || cn.includes(kn)) return val
           }
+
+          // nếu val là object -> đào sâu tiếp
           if (val && typeof val === 'object') {
             const deeper = dfs(val)
             if (deeper !== undefined) return deeper
           }
         } catch (e) {
-          // ignore
+          // ignore lỗi khi duyệt key
         }
       }
       return undefined
@@ -170,55 +192,89 @@ export default function Reports() {
 
     return dfs(obj)
   }
+
+  /**
+   * mapStatus:
+   * - Chuẩn hóa label trạng thái để hiển thị trong bảng:
+   *   CHECKED_IN / CHECKED_OUT giữ nguyên
+   *   REFUNDED -> “Đã Hoàn Tiền”
+   */
+  const mapStatus = (s: any) => {
+    if (s === undefined || s === null) return null
+    const v = String(s).toUpperCase()
+    switch (v) {
+      case 'CHECKED_IN':
+        return 'CHECKED_IN'
+      case 'CHECKED_OUT':
+        return 'CHECKED_OUT'
+      case 'REFUNDED':
+        return 'Đã Hoàn Tiền'
+      default:
+        return String(s)
+    }
+  }
+
+  /**
+   * getStatusClass:
+   * - Trả về class Tailwind cho badge theo status (màu nền + chữ)
+   */
+  const getStatusClass = (s: any) => {
+    if (s === undefined || s === null) return 'inline-block px-2 py-1 rounded text-xs bg-gray-100 text-gray-800'
+    const v = String(s).toUpperCase()
+    switch (v) {
+      case 'CHECKED_IN':
+        return 'inline-block px-2 py-1 rounded text-xs bg-green-100 text-green-800'
+      case 'CHECKED_OUT':
+        return 'inline-block px-2 py-1 rounded text-xs bg-purple-100 text-purple-800'
+      case 'REFUNDED':
+        return 'inline-block px-2 py-1 rounded text-xs bg-red-100 text-red-800'
+      case 'PURCHASED':
+      case 'BOOKED':
+        return 'inline-block px-2 py-1 rounded text-xs bg-blue-100 text-blue-800'
+      case 'CANCELLED':
+        return 'inline-block px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800'
+      default:
+        return 'inline-block px-2 py-1 rounded text-xs bg-gray-100 text-gray-800'
+    }
+  }
+
+  // ===================== 1) FETCH DANH SÁCH EVENT (/api/events) =====================
   useEffect(() => {
-    // fetchEvents: gọi API /api/events để lấy danh sách event (open + closed)
+    /**
+     * fetchEvents:
+     * - gọi /api/events (có Bearer token)
+     * - BE trả { openEvents: [...], closedEvents: [...] }
+     * - gộp lại thành 1 list cho dropdown
+     */
     const fetchEvents = async () => {
-      // Nếu chưa có token thì không gọi API
       if (!token) return
 
-      // Bật loading và reset error
       setEventsLoading(true)
       setEventsError(null)
 
       try {
-        // Gọi API lấy danh sách event
         const res = await fetch('/api/events', {
           headers: {
             Authorization: `Bearer ${token}`,
-            // Header này thường dùng khi dùng ngrok để bỏ warning (không bắt buộc)
             'ngrok-skip-browser-warning': '1',
           },
-          // credentials include nếu BE dùng cookie kèm theo
           credentials: 'include',
         })
 
-        // Parse JSON
         const data = await res.json()
         console.log('API /events response = ', data)
 
-        // Nếu res không OK -> throw error để catch xử lý
         if (!res.ok) {
-          throw new Error(
-            data?.error || data?.message || `HTTP ${res.status}`,
-          )
+          throw new Error(data?.error || data?.message || `HTTP ${res.status}`)
         }
 
-        /**
-         * ⚠️ Theo comment: BE trả về dạng:
-         * { openEvents: [...], closedEvents: [...] }
-         *
-         * => gộp 2 mảng lại thành 1 list duy nhất để render dropdown
-         */
+        // gộp open + closed
         const rawEvents = [
           ...(data.openEvents ?? []),
           ...(data.closedEvents ?? []),
         ]
 
-        /**
-         * Map dữ liệu event từ BE về EventOption cho FE dùng:
-         * - id có thể là eventId hoặc id
-         * - type có thể là type hoặc category
-         */
+        // map dữ liệu BE -> EventOption
         const list: EventOption[] = rawEvents.map((e: any) => ({
           id: e.eventId ?? e.id,
           title: e.title,
@@ -226,50 +282,45 @@ export default function Reports() {
           type: e.type || e.category || undefined,
         }))
 
-        // Set state events để UI dropdown render
         setEvents(list)
 
-        // Auto chọn event đầu tiên nếu chưa chọn gì (UX tốt hơn)
+        // auto chọn event đầu tiên để có stats hiển thị ngay
         if (!selectedEventId && list.length > 0) {
           setSelectedEventId(String(list[0].id))
         }
       } catch (err: any) {
-        // Nếu lỗi API/network -> set error để hiển thị UI
         console.error('Fetch events error', err)
         setEventsError(err?.message || 'Không tải được danh sách sự kiện')
       } finally {
-        // Tắt loading
         setEventsLoading(false)
       }
     }
 
-    // Gọi fetchEvents khi token thay đổi
     fetchEvents()
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // (Bạn đang cố tình không đưa selectedEventId vào deps để tránh auto chạy lại)
   }, [token])
 
-  // ================== 2. Load thống kê 1 event từ /api/events/stats ==================
+  // ===================== 2) FETCH STATS 1 EVENT (/api/events/stats) =====================
   useEffect(() => {
+    /**
+     * fetchStats:
+     * - gọi /api/events/stats?eventId=...
+     * - chuẩn hóa totalRegistered/totalRegistrations/totalTickets về 1 biến
+     * - normalize danh sách registrations/tickets (nếu có)
+     * - nếu không có registrations, fallback gọi /api/tickets/list
+     */
     const fetchStats = async () => {
-      // Nếu chưa có token hoặc chưa chọn event -> reset selectedStats và return
       if (!token || !selectedEventId) {
         setSelectedStats(null)
         return
       }
 
-      // Bật loading và reset error
       setStatsLoading(true)
       setStatsError(null)
 
       try {
-        // Tạo URL gọi API stats theo eventId
-        const url = `/api/events/stats?eventId=${encodeURIComponent(
-          selectedEventId,
-        )}`
+        const url = `/api/events/stats?eventId=${encodeURIComponent(selectedEventId)}`
 
-        // Fetch thống kê event
         const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -278,20 +329,17 @@ export default function Reports() {
           credentials: 'include',
         })
 
-        // Parse JSON
         const data = await res.json()
 
-        // Nếu res không OK -> throw error
         if (!res.ok) {
-          throw new Error(
-            data?.error || data?.message || `HTTP ${res.status}`,
-          )
+          throw new Error(data?.error || data?.message || `HTTP ${res.status}`)
         }
 
+        // totalReg: chuẩn hóa field tổng đăng ký từ BE (tùy BE đặt tên)
         const totalReg =
           data.totalRegistered ?? data.totalRegistrations ?? data.totalTickets ?? 0
 
-        // build mapped stats with normalized registrations if present
+        // mapped: object stats FE dùng thống nhất
         const mapped: EventStats = {
           eventId: data.eventId,
           eventTitle: data.eventTitle || data.title,
@@ -303,24 +351,44 @@ export default function Reports() {
           checkInRate: data.checkInRate,
           checkOutRate: data.checkOutRate,
           eventType: data.eventType,
+
+          // refund từ BE
+          totalRefunded: data.totalRefunded ?? 0,
+          refundedRate: data.refundedRate,
+
           registrations: [],
         }
 
-        // If API returns registrations/tickets array, normalize fields
+        // Lấy danh sách vé nếu BE trả nhiều kiểu key khác nhau
         const rawRegs = data.registrations ?? data.tickets ?? data.items ?? data.data ?? []
         if (Array.isArray(rawRegs) && rawRegs.length > 0) {
+          // normalize từng record (mỗi vé) về Registration
           mapped.registrations = rawRegs.map((r: any) => {
             const id = resolveFirst(r, ['id', 'ticketId', 'registrationId', 'code']) ?? 0
             const userName = resolveFirst(r, ['userName', 'name', 'fullName', 'buyerName']) ?? '-'
+
+            // email có thể nằm ở nhiều key hoặc lồng sâu
             let userEmail = resolveFirst(r, ['userEmail', 'email', 'buyerEmail', 'purchaserEmail'])
             if (!userEmail) userEmail = findDeepKey(r, ['email', 'buyerEmail']) ?? '-'
+
+            // seat có thể nhiều tên
             let seatNumber = resolveFirst(r, ['seatNumber', 'seat', 'seat_no', 'seatNo'])
             if (!seatNumber) seatNumber = findDeepKey(r, ['seat', 'assignedSeat']) ?? null
+
+            // ticketType có thể nhiều key
             let ticketType = resolveFirst(r, ['ticketType', 'type', 'category'])
             if (!ticketType) ticketType = findDeepKey(r, ['ticketName', 'ticket_type']) ?? null
-            const registeredAt = resolveFirst(r, ['purchaseDate', 'registeredAt', 'createdAt', 'created_at']) ?? ''
-            const checkedIn = !!resolveFirst(r, ['checkedIn', 'isCheckedIn', 'checked_in']) || !!findDeepKey(r, ['checkInTime', 'checkinTime'])
-            const checkedOut = !!resolveFirst(r, ['checkedOut', 'isCheckedOut', 'checked_out']) || !!findDeepKey(r, ['checkOutTime', 'checkoutTime'])
+
+            const registeredAt = resolveFirst(r, ['registeredAt', 'createdAt', 'created_at']) ?? ''
+
+            // checkedIn/checkedOut: boolean có thể đến từ cờ hoặc từ thời gian check-in/out
+            const checkedIn =
+              !!resolveFirst(r, ['checkedIn', 'isCheckedIn', 'checked_in']) ||
+              !!findDeepKey(r, ['checkInTime', 'checkinTime'])
+
+            const checkedOut =
+              !!resolveFirst(r, ['checkedOut', 'isCheckedOut', 'checked_out']) ||
+              !!findDeepKey(r, ['checkOutTime', 'checkoutTime'])
 
             return {
               id,
@@ -330,38 +398,69 @@ export default function Reports() {
               seatNumber: seatNumber ?? null,
               registeredAt,
               checkedIn,
-              checkedInAt: resolveFirst(r, ['checkedInAt', 'checked_in_at', 'checkInTime', 'checkinTime']) ?? null,
+              checkedInAt:
+                resolveFirst(r, ['checkedInAt', 'checked_in_at', 'checkInTime', 'checkinTime']) ??
+                null,
               checkedOut,
-              checkedOutAt: resolveFirst(r, ['checkedOutAt', 'checked_out_at', 'checkOutTime', 'checkoutTime']) ?? null,
+              checkedOutAt:
+                resolveFirst(r, ['checkedOutAt', 'checked_out_at', 'checkOutTime', 'checkoutTime']) ??
+                null,
               ticketType: ticketType ?? null,
               ticketCode: resolveFirst(r, ['ticketCode', 'code']) ?? null,
+              status:
+                resolveFirst(r, ['status', 'ticketStatus', 'state']) ??
+                findDeepKey(r, ['status', 'ticketStatus']) ??
+                null,
             }
           })
         }
 
-        // If mapped.registrations empty, try fallback /api/tickets/list
+        // Nếu API stats không trả registrations -> fallback gọi /api/tickets/list
         if ((!mapped.registrations || mapped.registrations.length === 0) && token) {
           try {
-            const ticketsRes = await fetch(`/api/tickets/list?eventId=${encodeURIComponent(selectedEventId)}`, {
-              headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': '1' },
-              credentials: 'include',
-            })
+            const ticketsRes = await fetch(
+              `/api/tickets/list?eventId=${encodeURIComponent(selectedEventId)}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'ngrok-skip-browser-warning': '1',
+                },
+                credentials: 'include',
+              },
+            )
+
             if (ticketsRes.ok) {
               const ticketsData = await ticketsRes.json()
-              const rawTickets = ticketsData.tickets ?? ticketsData.registrations ?? ticketsData.data ?? ticketsData.items ?? ticketsData
+              const rawTickets =
+                ticketsData.tickets ??
+                ticketsData.registrations ??
+                ticketsData.data ??
+                ticketsData.items ??
+                ticketsData
+
               if (Array.isArray(rawTickets)) {
                 mapped.registrations = rawTickets.map((t: any) => {
                   const id = resolveFirst(t, ['id', 'ticketId', 'registrationId', 'code']) ?? 0
                   const userName = resolveFirst(t, ['userName', 'name', 'fullName', 'buyerName']) ?? '-'
+
                   let userEmail = resolveFirst(t, ['userEmail', 'email', 'buyerEmail', 'purchaserEmail'])
                   if (!userEmail) userEmail = findDeepKey(t, ['email', 'buyerEmail']) ?? '-'
+
                   let seatNumber = resolveFirst(t, ['seatNumber', 'seat', 'seat_no', 'seatNo'])
                   if (!seatNumber) seatNumber = findDeepKey(t, ['seat', 'assignedSeat']) ?? null
+
                   let ticketType = resolveFirst(t, ['ticketType', 'type', 'category'])
                   if (!ticketType) ticketType = findDeepKey(t, ['ticketName', 'ticket_type']) ?? null
-                  const registeredAt = resolveFirst(t, ['purchaseDate', 'registeredAt', 'createdAt', 'created_at']) ?? ''
-                  const checkedIn = !!resolveFirst(t, ['checkedIn', 'isCheckedIn', 'checked_in']) || !!findDeepKey(t, ['checkInTime', 'checkinTime'])
-                  const checkedOut = !!resolveFirst(t, ['checkedOut', 'isCheckedOut', 'checked_out']) || !!findDeepKey(t, ['checkOutTime', 'checkoutTime'])
+
+                  const registeredAt = resolveFirst(t, ['registeredAt', 'createdAt', 'created_at']) ?? ''
+
+                  const checkedIn =
+                    !!resolveFirst(t, ['checkedIn', 'isCheckedIn', 'checked_in']) ||
+                    !!findDeepKey(t, ['checkInTime', 'checkinTime'])
+
+                  const checkedOut =
+                    !!resolveFirst(t, ['checkedOut', 'isCheckedOut', 'checked_out']) ||
+                    !!findDeepKey(t, ['checkOutTime', 'checkoutTime'])
 
                   return {
                     id,
@@ -371,11 +470,19 @@ export default function Reports() {
                     seatNumber: seatNumber ?? null,
                     registeredAt,
                     checkedIn,
-                    checkedInAt: resolveFirst(t, ['checkedInAt', 'checked_in_at', 'checkInTime', 'checkinTime']) ?? null,
+                    checkedInAt:
+                      resolveFirst(t, ['checkedInAt', 'checked_in_at', 'checkInTime', 'checkinTime']) ??
+                      null,
                     checkedOut,
-                    checkedOutAt: resolveFirst(t, ['checkedOutAt', 'checked_out_at', 'checkOutTime', 'checkoutTime']) ?? null,
+                    checkedOutAt:
+                      resolveFirst(t, ['checkedOutAt', 'checked_out_at', 'checkOutTime', 'checkoutTime']) ??
+                      null,
                     ticketType: ticketType ?? null,
                     ticketCode: resolveFirst(t, ['ticketCode', 'code']) ?? null,
+                    status:
+                      resolveFirst(t, ['status', 'ticketStatus', 'state']) ??
+                      findDeepKey(t, ['status', 'ticketStatus']) ??
+                      null,
                   }
                 })
               }
@@ -385,54 +492,36 @@ export default function Reports() {
           }
         }
 
-        // Set state thống kê event đang chọn
         setSelectedStats(mapped)
       } catch (err: any) {
-        // Nếu lỗi -> set error và reset selectedStats
         console.error('Fetch stats error', err)
         setStatsError(err?.message || 'Không tải được thống kê sự kiện')
         setSelectedStats(null)
       } finally {
-        // Tắt loading
         setStatsLoading(false)
       }
     }
 
-    // chạy fetchStats mỗi khi token hoặc selectedEventId thay đổi
     fetchStats()
   }, [token, selectedEventId])
 
-  /**
-   * selectedEvent: object event đang chọn, lấy từ danh sách events
-   * dùng để hiển thị title fallback nếu selectedStats thiếu eventTitle
-   */
-  const selectedEvent = events.find(
-    (e) => String(e.id) === String(selectedEventId),
-  )
+  // selectedEvent: lấy object event đang chọn từ list để hiển thị fallback title
+  const selectedEvent = events.find((e) => String(e.id) === String(selectedEventId))
 
-  // ============ Filter events by date range ============
-  /**
-   * filteredEvents:
-   * - Lọc danh sách events theo dateRange.start và dateRange.end
-   * - Nếu user chưa chọn ngày => trả về toàn bộ events
-   */
+  // ===================== FILTER EVENTS THEO DATE RANGE =====================
+  // filteredEvents: danh sách event sau lọc theo dateRange (nếu không chọn ngày => giữ nguyên)
+  //lọc để có danh sách event phục vụ việc tổng hợp thống kê nhiều event
   const filteredEvents = events.filter((event) => {
-    // Nếu không chọn start/end -> không lọc
     if (!dateRange.start && !dateRange.end) return true
-
-    // Nếu event không có startTime thì cho qua (để không bị mất event)
     if (!event.startTime) return true
 
-    // Parse startTime của event
     const eventDate = new Date(event.startTime)
 
-    // Nếu có start date -> loại các event trước start
     if (dateRange.start) {
       const startDate = new Date(dateRange.start)
       if (eventDate < startDate) return false
     }
 
-    // Nếu có end date -> loại các event sau end (đặt cuối ngày 23:59:59)
     if (dateRange.end) {
       const endDate = new Date(dateRange.end)
       endDate.setHours(23, 59, 59, 999)
@@ -442,23 +531,20 @@ export default function Reports() {
     return true
   })
 
-  // ============ Aggregate stats for filtered events ============
+  // ===================== AGGREGATE STATS NHIỀU EVENT =====================
   /**
    * handleFilterAndAggregate:
-   * - Khi user bấm nút "Lọc và tính tổng"
-   * - Sẽ gọi API /api/events/stats cho TẤT CẢ filteredEvents
-   * - Promise.all để chạy song song
-   * - Sau đó cộng dồn totals và setAggregatedStats để UI hiển thị "tổng hợp"
+   * - user bấm nút => gọi /api/events/stats cho từng event trong filteredEvents (đếm từng event sau đó cộng dồn)
+   * - Promise.all chạy song song
+   * - reduce cộng dồn
+   * - setAggregatedStats để UI hiển thị
    */
   const handleFilterAndAggregate = async () => {
-    // Nếu thiếu token hoặc không có event nào sau khi lọc -> không làm gì
     if (!token || filteredEvents.length === 0) return
 
-    // Bật loading tổng hợp
     setAggregateLoading(true)
 
     try {
-      // Tạo mảng promise: mỗi event gọi stats 1 lần
       const statsPromises = filteredEvents.map(async (event) => {
         const res = await fetch(`/api/events/stats?eventId=${event.id}`, {
           headers: {
@@ -468,12 +554,11 @@ export default function Reports() {
           credentials: 'include',
         })
 
-        // Nếu event nào lỗi thì bỏ qua (return null)
         if (!res.ok) return null
 
         const data = await res.json()
 
-        // Chuẩn hóa field tổng đăng ký/checkin/checkout để cộng dồn
+        // Chuẩn hóa field để cộng dồn
         return {
           totalRegistered: data.totalRegistered ?? data.totalRegistrations ?? 0,
           totalCheckedIn: data.totalCheckedIn ?? 0,
@@ -481,10 +566,8 @@ export default function Reports() {
         }
       })
 
-      // Chạy tất cả promise song song
       const statsResults = await Promise.all(statsPromises)
 
-      // Reduce để cộng dồn tổng các event
       const totals = statsResults.reduce(
         (acc, stat) => {
           if (stat) {
@@ -494,11 +577,9 @@ export default function Reports() {
           }
           return acc
         },
-        { totalRegistrations: 0, totalCheckedIn: 0, totalCheckedOut: 0 }
+        { totalRegistrations: 0, totalCheckedIn: 0, totalCheckedOut: 0 },
       )
 
-      // Set aggregatedStats cho UI:
-      // totalNotCheckedIn = totalRegistrations - totalCheckedIn
       setAggregatedStats({
         totalRegistrations: totals.totalRegistrations,
         totalCheckedIn: totals.totalCheckedIn,
@@ -507,47 +588,65 @@ export default function Reports() {
         eventsCount: filteredEvents.length,
       })
     } catch (err) {
-      // Lỗi tổng hợp (network)
       console.error('Aggregate stats error:', err)
     } finally {
-      // Tắt loading tổng hợp
       setAggregateLoading(false)
     }
   }
 
-  // ============ Data đã map cho UI ============
+  // ===================== DERIVED DATA CHO UI =====================
 
-  // registrations: danh sách người đăng ký của event đang chọn (nếu API trả)
+  // registrations: danh sách vé của event đang chọn
   const registrations: Registration[] = selectedStats?.registrations || []
 
-  // count checkin/checkout/registrations từ selectedStats (fallback về 0)
+  // count check-in/check-out
   const checkedInCount = selectedStats?.totalCheckedIn ?? 0
   const checkedOutCount = selectedStats?.totalCheckedOut ?? 0
 
-  // totalRegistrations: ưu tiên totalRegistrations -> fallback totalTickets -> fallback 0
+  // totalRegistrations: ưu tiên totalRegistrations -> totalTickets
   const totalRegistrations =
     selectedStats?.totalRegistrations ?? selectedStats?.totalTickets ?? 0
 
-  // notCheckedInCount: số người chưa check-in = đăng ký - checkin (không âm)
+  // notCheckedInCount: đăng ký - checkin (không âm)
   const notCheckedInCount =
-    totalRegistrations > checkedInCount
-      ? totalRegistrations - checkedInCount
-      : 0
+    totalRegistrations > checkedInCount ? totalRegistrations - checkedInCount : 0
+
+  // refunded count & rate (nếu có)
+  const refundedCount = selectedStats?.totalRefunded ?? 0
 
   /**
-   * totalEvents: số sự kiện trong filteredEvents (tùy dateRange)
-   * totalCheckedIn/Out: hiện đang dùng số của event đang chọn
-   * (nếu muốn tổng checkin/out cho filtered events thì lấy từ aggregatedStats)
+   * formatPercent:
+   * - Nếu BE đã trả chuỗi rate (ví dụ "12,3%") thì dùng luôn
+   * - Nếu không có thì tự tính từ num/denom
+   * - Định dạng 1 chữ số thập phân và dùng dấu phẩy theo kiểu VN
    */
+  const formatPercent = (apiValue: any, num?: number, denom?: number) => {
+    if (apiValue !== undefined && apiValue !== null && String(apiValue).trim() !== '') return String(apiValue)
+    const n = Number(num ?? 0)  //Có thể là tổng checkin / tổng checkout / tổng hoàn tiền
+    const d = Number(denom ?? 0) //tổng đăng ký
+    if (!d || d === 0) return '0,0%'
+    const val = (n / d) * 100
+    return val.toFixed(1).replace('.', ',') + '%'
+  }
+
+  const refundedRate = formatPercent(selectedStats?.refundedRate, refundedCount, totalRegistrations)
+
+  // Tổng event sau lọc (phục vụ card "Tổng sự kiện")
   const totalEvents = filteredEvents.length
+
+  // 2 biến này hiện lấy theo event đang chọn (nếu muốn tổng hợp thì lấy từ aggregatedStats)
   const totalCheckedIn = checkedInCount
   const totalCheckedOut = checkedOutCount
 
-  // Chart data: 1 event đang chọn hoặc tổng hợp (nếu aggregatedStats có)
+  /**
+   * eventAttendanceData:
+   * - Data cho BarChart:
+   *   + Nếu aggregatedStats có: hiển thị 1 cột “Tổng hợp (n sự kiện)”
+   *   + Nếu không: hiển thị 1 cột cho event đang chọn
+   */
   const eventAttendanceData = aggregatedStats
     ? [
         {
-          // Khi tổng hợp: đặt tên là "Tổng hợp (n sự kiện)"
           name: `Tổng hợp (${aggregatedStats.eventsCount} sự kiện)`,
           'Đã đăng ký': aggregatedStats.totalRegistrations,
           'Đã check-in': aggregatedStats.totalCheckedIn,
@@ -557,7 +656,6 @@ export default function Reports() {
     : selectedStats && selectedEvent
     ? [
         {
-          // Khi xem chi tiết 1 event: đặt name theo eventTitle
           name: selectedStats.eventTitle || selectedEvent.title,
           'Đã đăng ký': totalRegistrations,
           'Đã check-in': checkedInCount,
@@ -567,11 +665,11 @@ export default function Reports() {
     : []
 
   /**
-   * Dữ liệu pie chart:
-   * - Nếu đang tổng hợp: dùng aggregatedStats
-   * - Nếu xem chi tiết: dùng checkedIn/Out/notCheckedInCount
-   *
-   * Lưu ý: entry.color đang dùng hex để tô màu từng phần
+   * checkInPieData:
+   * - Data cho PieChart:
+   *   + Nếu tổng hợp: dùng aggregatedStats
+   *   + Nếu chi tiết 1 event: dùng checkedIn/checkedOut/notCheckedInCount
+   * - Có kèm màu (hex) theo từng phần
    */
   const checkInPieData = aggregatedStats
     ? [
@@ -587,159 +685,148 @@ export default function Reports() {
 
   /**
    * eventTypeChartData:
-   * - Bạn đang tạo object eventTypeData chỉ cho 1 eventType
-   * - rồi map thành dạng array để chart (nhưng hiện code chưa render chart type)
+   * - Tạo data cho chart loại sự kiện (hiện chỉ set 1 loại của selectedStats)
+   * - Lưu ý: file hiện chưa render chart này bên dưới
    */
   const eventTypeData: Record<string, number> = {}
   if (selectedStats?.eventType) {
     eventTypeData[selectedStats.eventType] = totalRegistrations
   }
-  const eventTypeChartData = Object.entries(eventTypeData).map(
-    ([name, value]) => ({
-      name,
-      value,
-    }),
-  )
+  const eventTypeChartData = Object.entries(eventTypeData).map(([name, value]) => ({ name, value }))
 
   // ===================== RENDER UI =====================
   return (
     <div>
-      {/* Header trang + nút export */}
-      <div className="flex justify-between items-center mb-8">
+      {/* ===== Header ===== */}
+      <div className="flex items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Báo cáo tham dự</h1>
-
-        {/* Export button removed (UI-only) */}
       </div>
 
-      {/* ===================== Overall Statistics ===================== */}
-      {/* 4 ô thống kê tổng quan */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        {/* Tổng sự kiện (số event sau khi filter dateRange) */}
+      {/* ===== Overall Statistics (5 cards) ===== */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+        {/* Card: Tổng sự kiện (sau lọc dateRange) */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Tổng sự kiện</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {totalEvents}
-              </p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{totalEvents}</p>
             </div>
             <Calendar className="w-12 h-12 text-blue-500" />
           </div>
         </div>
 
-        {/* Tổng đăng ký (sự kiện chọn) - hiện đang hiển thị theo selectedStats */}
+        {/* Card: Tổng đăng ký (event đang chọn) */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Tổng đăng ký (sự kiện chọn)</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {totalRegistrations}
-              </p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{totalRegistrations}</p>
             </div>
             <Users className="w-12 h-12 text-green-500" />
           </div>
         </div>
 
-        {/* Tổng check-in (sự kiện chọn) */}
+        {/* Card: Tổng check-in */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Tổng check-in</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {totalCheckedIn}
-              </p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{totalCheckedIn}</p>
             </div>
             <CheckCircle className="w-12 h-12 text-green-500" />
           </div>
         </div>
 
-        {/* Tổng check-out (sự kiện chọn) */}
+        {/* Card: Tổng check-out */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Tổng check-out</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {totalCheckedOut}
-              </p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{totalCheckedOut}</p>
             </div>
             <XCircle className="w-12 h-12 text-purple-500" />
           </div>
         </div>
+
+        {/* Card: Tổng hoàn tiền */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Tổng Đã Hoàn Tiền</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{refundedCount}</p>
+            </div>
+            <XCircle className="w-12 h-12 text-red-500" />
+          </div>
+        </div>
       </div>
 
-      {/* ===================== Check-in/Check-out Rate Cards ===================== */}
-      {/* 2 ô hiển thị tỷ lệ check-in và check-out */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {/* Tỷ lệ check-in */}
+      {/* ===== Rate cards: check-in / check-out / refunded ===== */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* Rate: check-in */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Tỷ lệ check-in</p>
-
-              {/* Ưu tiên lấy checkInRate từ BE, nếu không có thì tự tính */}
               <p className="text-3xl font-bold text-green-600 mt-2">
-                {selectedStats?.checkInRate || (totalRegistrations > 0
-                  ? Math.round((totalCheckedIn / totalRegistrations) * 100) + '%'
-                  : '0%')}
+                {formatPercent(selectedStats?.checkInRate, totalCheckedIn, totalRegistrations)}
               </p>
             </div>
-
-            {/* Icon circle */}
             <div className="w-12 h-12 flex items-center justify-center bg-green-100 rounded-full">
               <span className="text-2xl text-green-600">✓</span>
             </div>
           </div>
         </div>
 
-        {/* Tỷ lệ check-out */}
+        {/* Rate: check-out */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Tỷ lệ check-out</p>
-
-              {/* Ưu tiên lấy checkOutRate từ BE, nếu không có thì tự tính */}
               <p className="text-3xl font-bold text-purple-600 mt-2">
-                {selectedStats?.checkOutRate || (totalCheckedIn > 0
-                  ? Math.round((totalCheckedOut / totalCheckedIn) * 100) + '%'
-                  : '0%')}
+                {formatPercent(selectedStats?.checkOutRate, totalCheckedOut, totalCheckedIn)}
               </p>
             </div>
-
-            {/* Icon circle */}
             <div className="w-12 h-12 flex items-center justify-center bg-purple-100 rounded-full">
               <span className="text-2xl text-purple-600">↩</span>
             </div>
           </div>
         </div>
+
+        {/* Rate: refunded */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Tỷ lệ hoàn tiền</p>
+              <p className="text-3xl font-bold text-red-600 mt-2">{refundedRate}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Đã hoàn: {refundedCount}/{totalRegistrations}
+              </p>
+            </div>
+            <div className="w-12 h-12 flex items-center justify-center bg-red-100 rounded-full">
+              <XCircle className="w-6 h-6 text-red-600" />
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ===================== Filters ===================== */}
-      {/* Khối filter theo event + theo khoảng thời gian */}
+      {/* ===== Filters: dropdown event + date range + aggregate button ===== */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4 flex items-center">
           <Filter className="w-5 h-5 mr-2" />
           Lọc báo cáo
         </h2>
 
-        {/* 3 input: chọn event, từ ngày, đến ngày */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Dropdown chọn sự kiện */}
+          {/* Select event */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Chọn sự kiện
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Chọn sự kiện</label>
             <select
-              value={selectedEventId} // state điều khiển
-              onChange={(e) => setSelectedEventId(e.target.value)} // đổi event -> fetchStats chạy
+              value={selectedEventId}
+              onChange={(e) => setSelectedEventId(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              {/* Khi đang loading event list */}
               {eventsLoading && <option>Đang tải...</option>}
-
-              {/* Option “tất cả” (nhưng note: code hiện vẫn fetchStats khi selectedEventId rỗng sẽ reset selectedStats) */}
               {!eventsLoading && <option value="">-- Tất cả sự kiện trong khoảng thời gian --</option>}
-
-              {/* Render danh sách sự kiện đã lọc theo dateRange */}
               {filteredEvents.map((event) => (
                 <option key={event.id} value={event.id}>
                   {event.title}
@@ -747,44 +834,33 @@ export default function Reports() {
               ))}
             </select>
 
-            {/* Nếu có lỗi load events */}
-            {eventsError && (
-              <p className="mt-1 text-xs text-red-500">{eventsError}</p>
-            )}
+            {eventsError && <p className="mt-1 text-xs text-red-500">{eventsError}</p>}
           </div>
 
-          {/* Input ngày bắt đầu */}
+          {/* Date start */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Từ ngày
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Từ ngày</label>
             <input
               type="date"
               value={dateRange.start}
-              onChange={(e) =>
-                setDateRange({ ...dateRange, start: e.target.value })
-              }
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
-          {/* Input ngày kết thúc */}
+          {/* Date end */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Đến ngày
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Đến ngày</label>
             <input
               type="date"
               value={dateRange.end}
-              onChange={(e) =>
-                setDateRange({ ...dateRange, end: e.target.value })
-              }
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
 
-        {/* Nút “Lọc và tính tổng”: gọi handleFilterAndAggregate */}
+        {/* Aggregate button */}
         <div className="mt-4 flex justify-end">
           <button
             onClick={handleFilterAndAggregate}
@@ -797,10 +873,12 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* ===================== Ticket List (per event) ===================== */}
+      {/* ===== Ticket List (chỉ hiện khi đang xem stats 1 event) ===== */}
       {selectedStats && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">Danh sách vé — {selectedStats.eventTitle || selectedEvent?.title}</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Danh sách vé — {selectedStats.eventTitle || selectedEvent?.title}
+          </h2>
 
           <p className="text-sm text-gray-600 mb-4">Tổng vé: {totalRegistrations}</p>
 
@@ -811,12 +889,12 @@ export default function Reports() {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">#</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Ticket ID</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tên</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Ngày mua</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Seat</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Loại vé</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Trạng thái</th>
                 </tr>
               </thead>
+
               <tbody className="bg-white divide-y divide-gray-200">
                 {registrations.length === 0 ? (
                   <tr>
@@ -826,28 +904,48 @@ export default function Reports() {
                   </tr>
                 ) : (
                   registrations.map((r, idx) => {
+                    // Lấy ticketId/seat/ticketType từ nhiều nguồn key khác nhau
                     const ticketId = (r as any).ticketId ?? r.id ?? '-'
-                    const registeredAt = (r as any).purchaseDate ?? (r as any).registeredAt ?? r.registeredAt ?? (r as any).createdAt ?? ''
                     const seat = r.seatNumber ?? (r as any).seat ?? '-'
-                    const seatType = (r as any).seatType ?? (r as any).ticketType ?? (r as any).type ?? '-'
-                    const isCheckedIn = !!r.checkedIn || !!(r as any).isCheckedIn
-                    const isCheckedOut = !!r.checkedOut || !!(r as any).isCheckedOut
-                    const checkInTime = (r as any).checkedInAt ?? (r as any).checked_in_at ?? (r as any).checkInTime ?? (r as any).checkinTime ?? null
-                    const checkOutTime = (r as any).checkedOutAt ?? (r as any).checked_out_at ?? (r as any).checkOutTime ?? (r as any).checkoutTime ?? null
+                    const seatType =
+                      (r as any).seatType ?? (r as any).ticketType ?? (r as any).type ?? '-'
+
+                    // Lấy time check-in/out
+                    const checkInTime =
+                      (r as any).checkedInAt ??
+                      (r as any).checked_in_at ??
+                      (r as any).checkInTime ??
+                      (r as any).checkinTime ??
+                      null
+
+                    const checkOutTime =
+                      (r as any).checkedOutAt ??
+                      (r as any).checked_out_at ??
+                      (r as any).checkOutTime ??
+                      (r as any).checkoutTime ??
+                      null
+
+                    // Chuẩn hóa status và class badge
+                    const statusRaw = resolveFirst(r, ['status', 'ticketStatus', 'state']) ?? (r as any).status ?? null
+                    const statusLabel = mapStatus(statusRaw)
+                    const statusBadgeClass = getStatusClass(statusRaw)
 
                     return (
                       <tr key={r.id ?? idx}>
                         <td className="px-4 py-3 text-sm text-gray-700">{idx + 1}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{ticketId}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{r.userName ?? '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{registeredAt ? format(new Date(registeredAt), 'Pp', { locale: vi }) : '-'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{seat}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{seatType}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">
                           <div className="flex flex-col">
-                            {status ? <span>{status}</span> : null}
-                            <span className="text-xs text-gray-500">Check-in: {checkInTime ? new Date(checkInTime).toLocaleString() : '-'}</span>
-                            <span className="text-xs text-gray-500">Check-out: {checkOutTime ? new Date(checkOutTime).toLocaleString() : '-'}</span>
+                            {statusLabel ? <span className={statusBadgeClass}>{statusLabel}</span> : null}
+                            <span className="text-xs text-gray-500">
+                              Check-in: {checkInTime ? new Date(checkInTime).toLocaleString() : '-'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              Check-out: {checkOutTime ? new Date(checkOutTime).toLocaleString() : '-'}
+                            </span>
                           </div>
                         </td>
                       </tr>
@@ -860,8 +958,7 @@ export default function Reports() {
         </div>
       )}
 
-      {/* ===================== Aggregated Results ===================== */}
-      {/* Nếu aggregatedStats tồn tại => hiển thị bảng tổng hợp */}
+      {/* ===== Aggregated Results (chỉ hiện khi đã bấm tổng hợp) ===== */}
       {aggregatedStats && (
         <>
           <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -869,7 +966,6 @@ export default function Reports() {
               Thống kê tổng hợp ({aggregatedStats.eventsCount} sự kiện)
             </h2>
 
-            {/* 4 ô tổng hợp: đăng ký, check-in, check-out, chưa check-in */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-blue-50 rounded-lg p-4">
                 <div className="flex items-center justify-between">
@@ -920,17 +1016,12 @@ export default function Reports() {
               </div>
             </div>
 
-            {/* Tỷ lệ tổng hợp */}
             <div className="mt-4 pt-4 border-t border-gray-200 flex gap-8">
               <p className="text-sm text-gray-600">
                 Tỷ lệ check-in:{' '}
                 <span className="font-bold text-lg text-green-600">
                   {aggregatedStats.totalRegistrations > 0
-                    ? Math.round(
-                        (aggregatedStats.totalCheckedIn /
-                          aggregatedStats.totalRegistrations) *
-                          100
-                      )
+                    ? Math.round((aggregatedStats.totalCheckedIn / aggregatedStats.totalRegistrations) * 100)
                     : 0}
                   %
                 </span>
@@ -940,11 +1031,7 @@ export default function Reports() {
                 Tỷ lệ check-out:{' '}
                 <span className="font-bold text-lg text-purple-600">
                   {aggregatedStats.totalCheckedIn > 0
-                    ? Math.round(
-                        (aggregatedStats.totalCheckedOut /
-                          aggregatedStats.totalCheckedIn) *
-                          100
-                      )
+                    ? Math.round((aggregatedStats.totalCheckedOut / aggregatedStats.totalCheckedIn) * 100)
                     : 0}
                   %
                 </span>
@@ -954,19 +1041,23 @@ export default function Reports() {
         </>
       )}
 
-      {/* ===================== Hướng dẫn sử dụng ===================== */}
-      {/* Nếu chưa chọn event (selectedEvent null) và chưa có tổng hợp -> hiện hướng dẫn */}
+      {/* ===== Hướng dẫn dùng (khi chưa có event được chọn và chưa tổng hợp) ===== */}
       {!selectedEvent && !aggregatedStats && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">Hướng dẫn sử dụng</h2>
 
           <div className="space-y-2 text-sm text-gray-600">
-            <p>• <strong>Chọn khoảng thời gian:</strong> Sử dụng "Từ ngày" và "Đến ngày" để lọc các sự kiện trong khoảng thời gian cụ thể</p>
-            <p>• <strong>Xem tổng hợp:</strong> Nhấn nút "Lọc và tính tổng" để xem thống kê tổng hợp của tất cả sự kiện trong khoảng thời gian</p>
-            <p>• <strong>Xem chi tiết:</strong> Chọn 1 sự kiện cụ thể để xem thống kê chi tiết cho sự kiện đó</p>
+            <p>
+              • <strong>Chọn khoảng thời gian:</strong> Sử dụng "Từ ngày" và "Đến ngày" để lọc các sự kiện trong khoảng thời gian cụ thể
+            </p>
+            <p>
+              • <strong>Xem tổng hợp:</strong> Nhấn nút "Lọc và tính tổng" để xem thống kê tổng hợp của tất cả sự kiện trong khoảng thời gian
+            </p>
+            <p>
+              • <strong>Xem chi tiết:</strong> Chọn 1 sự kiện cụ thể để xem thống kê chi tiết cho sự kiện đó
+            </p>
           </div>
 
-          {/* Thông tin phụ: đang lọc được bao nhiêu event */}
           <p className="mt-4 text-sm text-gray-500 italic">
             Hiện tại: Đang hiển thị {filteredEvents.length} sự kiện
             {(dateRange.start || dateRange.end) && ' trong khoảng thời gian đã chọn'}
