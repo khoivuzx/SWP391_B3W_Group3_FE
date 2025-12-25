@@ -48,6 +48,10 @@ type Registration = {
   registeredAt: string
   checkedIn: boolean
   checkedInAt?: string | null
+  checkedOut?: boolean
+  checkedOutAt?: string | null
+  ticketType?: string | null
+  ticketCode?: string | null
 }
 
 // EventStats: dữ liệu thống kê của 1 event (hoặc để tổng hợp)
@@ -116,6 +120,56 @@ export default function Reports() {
     typeof window !== 'undefined' ? localStorage.getItem('token') : null
 
   // ================== 1. Load danh sách event ==================
+  // Helper: try multiple paths (supports nested e.g. 'user.email') and return first defined
+  const resolveFirst = (obj: any, paths: string[]) => {
+    for (const p of paths) {
+      const parts = p.split('.')
+      let cur = obj
+      let ok = true
+      for (const part of parts) {
+        if (cur && Object.prototype.hasOwnProperty.call(cur, part)) {
+          cur = cur[part]
+        } else {
+          ok = false
+          break
+        }
+      }
+      if (ok && cur !== undefined && cur !== null) return cur
+    }
+    return undefined
+  }
+
+  // Deep finder: search any nested key matching candidate names (normalized)
+  const findDeepKey = (obj: any, candidates: string[]) => {
+    if (!obj || typeof obj !== 'object') return undefined
+    const normalize = (s: string) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '')
+    const candNorm = candidates.map(normalize)
+    const seen = new WeakSet<any>()
+
+    const dfs = (node: any): any => {
+      if (!node || typeof node !== 'object') return undefined
+      if (seen.has(node)) return undefined
+      seen.add(node)
+      for (const key of Object.keys(node)) {
+        try {
+          const val = node[key]
+          const kn = normalize(key)
+          for (const cn of candNorm) {
+            if (kn === cn || kn.includes(cn) || cn.includes(kn)) return val
+          }
+          if (val && typeof val === 'object') {
+            const deeper = dfs(val)
+            if (deeper !== undefined) return deeper
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+      return undefined
+    }
+
+    return dfs(obj)
+  }
   useEffect(() => {
     // fetchEvents: gọi API /api/events để lấy danh sách event (open + closed)
     const fetchEvents = async () => {
@@ -234,27 +288,101 @@ export default function Reports() {
           )
         }
 
-        /**
-         * Map về EventStats:
-         * - Bạn có comment: API trả totalRegistered thay vì totalRegistrations
-         * -> totalReg sẽ ưu tiên totalRegistered, fallback totalRegistrations, fallback totalTickets
-         */
         const totalReg =
           data.totalRegistered ?? data.totalRegistrations ?? data.totalTickets ?? 0
 
-        // mapped: chuẩn hóa field name để UI dùng thống nhất
+        // build mapped stats with normalized registrations if present
         const mapped: EventStats = {
           eventId: data.eventId,
           eventTitle: data.eventTitle || data.title,
           startTime: data.startTime,
-          totalTickets: totalReg, // ở đây bạn dùng totalTickets = totalReg cho thống nhất
+          totalTickets: totalReg,
           totalCheckedIn: data.totalCheckedIn ?? 0,
           totalCheckedOut: data.totalCheckedOut ?? 0,
           totalRegistrations: totalReg,
           checkInRate: data.checkInRate,
           checkOutRate: data.checkOutRate,
           eventType: data.eventType,
-          registrations: data.registrations || [],
+          registrations: [],
+        }
+
+        // If API returns registrations/tickets array, normalize fields
+        const rawRegs = data.registrations ?? data.tickets ?? data.items ?? data.data ?? []
+        if (Array.isArray(rawRegs) && rawRegs.length > 0) {
+          mapped.registrations = rawRegs.map((r: any) => {
+            const id = resolveFirst(r, ['id', 'ticketId', 'registrationId', 'code']) ?? 0
+            const userName = resolveFirst(r, ['userName', 'name', 'fullName', 'buyerName']) ?? '-'
+            let userEmail = resolveFirst(r, ['userEmail', 'email', 'buyerEmail', 'purchaserEmail'])
+            if (!userEmail) userEmail = findDeepKey(r, ['email', 'buyerEmail']) ?? '-'
+            let seatNumber = resolveFirst(r, ['seatNumber', 'seat', 'seat_no', 'seatNo'])
+            if (!seatNumber) seatNumber = findDeepKey(r, ['seat', 'assignedSeat']) ?? null
+            let ticketType = resolveFirst(r, ['ticketType', 'type', 'category'])
+            if (!ticketType) ticketType = findDeepKey(r, ['ticketName', 'ticket_type']) ?? null
+            const registeredAt = resolveFirst(r, ['registeredAt', 'createdAt', 'created_at']) ?? ''
+            const checkedIn = !!resolveFirst(r, ['checkedIn', 'isCheckedIn', 'checked_in']) || !!findDeepKey(r, ['checkInTime', 'checkinTime'])
+            const checkedOut = !!resolveFirst(r, ['checkedOut', 'isCheckedOut', 'checked_out']) || !!findDeepKey(r, ['checkOutTime', 'checkoutTime'])
+
+            return {
+              id,
+              userName,
+              studentId: resolveFirst(r, ['studentId', 'student_id']) ?? null,
+              userEmail: userEmail ?? '-',
+              seatNumber: seatNumber ?? null,
+              registeredAt,
+              checkedIn,
+              checkedInAt: resolveFirst(r, ['checkedInAt', 'checked_in_at', 'checkInTime', 'checkinTime']) ?? null,
+              checkedOut,
+              checkedOutAt: resolveFirst(r, ['checkedOutAt', 'checked_out_at', 'checkOutTime', 'checkoutTime']) ?? null,
+              ticketType: ticketType ?? null,
+              ticketCode: resolveFirst(r, ['ticketCode', 'code']) ?? null,
+            }
+          })
+        }
+
+        // If mapped.registrations empty, try fallback /api/tickets/list
+        if ((!mapped.registrations || mapped.registrations.length === 0) && token) {
+          try {
+            const ticketsRes = await fetch(`/api/tickets/list?eventId=${encodeURIComponent(selectedEventId)}`, {
+              headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': '1' },
+              credentials: 'include',
+            })
+            if (ticketsRes.ok) {
+              const ticketsData = await ticketsRes.json()
+              const rawTickets = ticketsData.tickets ?? ticketsData.registrations ?? ticketsData.data ?? ticketsData.items ?? ticketsData
+              if (Array.isArray(rawTickets)) {
+                mapped.registrations = rawTickets.map((t: any) => {
+                  const id = resolveFirst(t, ['id', 'ticketId', 'registrationId', 'code']) ?? 0
+                  const userName = resolveFirst(t, ['userName', 'name', 'fullName', 'buyerName']) ?? '-'
+                  let userEmail = resolveFirst(t, ['userEmail', 'email', 'buyerEmail', 'purchaserEmail'])
+                  if (!userEmail) userEmail = findDeepKey(t, ['email', 'buyerEmail']) ?? '-'
+                  let seatNumber = resolveFirst(t, ['seatNumber', 'seat', 'seat_no', 'seatNo'])
+                  if (!seatNumber) seatNumber = findDeepKey(t, ['seat', 'assignedSeat']) ?? null
+                  let ticketType = resolveFirst(t, ['ticketType', 'type', 'category'])
+                  if (!ticketType) ticketType = findDeepKey(t, ['ticketName', 'ticket_type']) ?? null
+                  const registeredAt = resolveFirst(t, ['registeredAt', 'createdAt', 'created_at']) ?? ''
+                  const checkedIn = !!resolveFirst(t, ['checkedIn', 'isCheckedIn', 'checked_in']) || !!findDeepKey(t, ['checkInTime', 'checkinTime'])
+                  const checkedOut = !!resolveFirst(t, ['checkedOut', 'isCheckedOut', 'checked_out']) || !!findDeepKey(t, ['checkOutTime', 'checkoutTime'])
+
+                  return {
+                    id,
+                    userName,
+                    studentId: resolveFirst(t, ['studentId', 'student_id']) ?? null,
+                    userEmail: userEmail ?? '-',
+                    seatNumber: seatNumber ?? null,
+                    registeredAt,
+                    checkedIn,
+                    checkedInAt: resolveFirst(t, ['checkedInAt', 'checked_in_at', 'checkInTime', 'checkinTime']) ?? null,
+                    checkedOut,
+                    checkedOutAt: resolveFirst(t, ['checkedOutAt', 'checked_out_at', 'checkOutTime', 'checkoutTime']) ?? null,
+                    ticketType: ticketType ?? null,
+                    ticketCode: resolveFirst(t, ['ticketCode', 'code']) ?? null,
+                  }
+                })
+              }
+            }
+          } catch (e) {
+            // ignore fallback errors
+          }
         }
 
         // Set state thống kê event đang chọn
@@ -673,80 +801,65 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* ===================== Charts ===================== */}
-      {/* 2 biểu đồ: bar chart + pie chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* -------- Event Attendance Chart (BarChart) -------- */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            {aggregatedStats
-              ? `Biểu đồ tổng hợp (${aggregatedStats.eventsCount} sự kiện)`
-              : 'Thống kê tham dự theo sự kiện (đang chọn)'}
-          </h2>
+      {/* ===================== Ticket List (per event) ===================== */}
+      {selectedStats && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">Danh sách vé — {selectedStats.eventTitle || selectedEvent?.title}</h2>
 
-          {/* Nếu đang load stats (và không phải đang xem tổng hợp) */}
-          {statsLoading && !aggregatedStats ? (
-            <p className="text-gray-500 text-sm">Đang tải thống kê...</p>
+          <p className="text-sm text-gray-600 mb-4">Tổng vé: {totalRegistrations}</p>
 
-          ) : statsError && !aggregatedStats ? (
-            // Nếu lỗi load stats của event đang chọn
-            <p className="text-red-500 text-sm">{statsError}</p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">#</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Ticket ID</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tên</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Seat</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Loại vé</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {registrations.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                      Không có vé / đăng ký nào
+                    </td>
+                  </tr>
+                ) : (
+                  registrations.map((r, idx) => {
+                    const ticketId = (r as any).ticketId ?? r.id ?? '-'
+                    const seat = r.seatNumber ?? (r as any).seat ?? '-'
+                    const seatType = (r as any).seatType ?? (r as any).ticketType ?? (r as any).type ?? '-'
+                    const isCheckedIn = !!r.checkedIn || !!(r as any).isCheckedIn
+                    const isCheckedOut = !!r.checkedOut || !!(r as any).isCheckedOut
+                    const checkInTime = (r as any).checkedInAt ?? (r as any).checked_in_at ?? (r as any).checkInTime ?? (r as any).checkinTime ?? null
+                    const checkOutTime = (r as any).checkedOutAt ?? (r as any).checked_out_at ?? (r as any).checkOutTime ?? (r as any).checkoutTime ?? null
 
-          ) : (
-            // Render BarChart
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={eventAttendanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-20} textAnchor="end" height={60} />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-
-                {/* 3 cột: đăng ký / check-in / check-out */}
-                <Bar dataKey="Đã đăng ký" fill="#3b82f6" />
-                <Bar dataKey="Đã check-in" fill="#10b981" />
-                <Bar dataKey="Đã check-out" fill="#8b5cf6" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* -------- Check-in Status Pie Chart -------- */}
-        {/* Chỉ render pie khi có aggregatedStats hoặc có đủ selectedEvent + selectedStats */}
-        {(aggregatedStats || (selectedEvent && selectedStats)) && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">
-              {aggregatedStats
-                ? 'Tỷ lệ check-in tổng hợp'
-                : `Trạng thái check-in: ${selectedStats?.eventTitle || selectedEvent?.title}`}
-            </h2>
-
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={checkInPieData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  // label hiển thị % mỗi phần
-                  label={({ name, percent }) =>
-                    `${name}: ${(percent * 100).toFixed(0)}%`
-                  }
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {/* Tô màu cho từng phần pie dựa trên entry.color */}
-                  {checkInPieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+                    return (
+                      <tr key={r.id ?? idx}>
+                        <td className="px-4 py-3 text-sm text-gray-700">{idx + 1}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{ticketId}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{r.userName ?? '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{seat}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{seatType}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          <div className="flex flex-col">
+                            {status ? <span>{status}</span> : null}
+                            <span className="text-xs text-gray-500">Check-in: {checkInTime ? new Date(checkInTime).toLocaleString() : '-'}</span>
+                            <span className="text-xs text-gray-500">Check-out: {checkOutTime ? new Date(checkOutTime).toLocaleString() : '-'}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ===================== Aggregated Results ===================== */}
       {/* Nếu aggregatedStats tồn tại => hiển thị bảng tổng hợp */}

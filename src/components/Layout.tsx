@@ -1,6 +1,6 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { LogOut, Menu, X } from 'lucide-react'
+import { LogOut, Menu, X, Wallet } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import fptLogo from '../assets/fpt-logo.png'
 import fptLogoLoading from '../assets/fpt-logo-loading.png'
@@ -29,6 +29,7 @@ export default function Layout() {
 
   const isOrganizer = user?.role === 'ORGANIZER'
   const isStaff = user?.role === 'STAFF'
+  const isAdmin = user?.role === 'ADMIN'
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-orange-100">
@@ -98,6 +99,18 @@ export default function Layout() {
                   </Link>
                 </>
               )}
+              {isOrganizer && (
+                <Link
+                  to="/dashboard/reports"
+                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    location.pathname === '/dashboard/reports'
+                      ? 'bg-orange-100 text-orange-600'
+                      : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'
+                  }`}
+                >
+                  Báo cáo
+                </Link>
+              )}
               {!isOrganizer && !isStaff && (
                 <>
                   <Link
@@ -125,41 +138,39 @@ export default function Layout() {
               {isStaff && (
                 <>
                   <Link
-                    to="/dashboard/venues"
+                    to="/dashboard/report-requests"
                     className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                      location.pathname === '/dashboard/venues'
+                      location.pathname === '/dashboard/report-requests'
                         ? 'bg-orange-100 text-orange-600'
                         : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'
                     }`}
                   >
-                    Địa điểm
-                  </Link>
-                  <Link
-                    to="/dashboard/reports"
-                    className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                      location.pathname === '/dashboard/reports'
-                        ? 'bg-orange-100 text-orange-600'
-                        : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'
-                    }`}
-                  >
-                    Báo cáo
-                  </Link>
-                  <Link
-                    to="/dashboard/system-config"
-                    className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                      location.pathname === '/dashboard/system-config'
-                        ? 'bg-orange-100 text-orange-600'
-                        : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'
-                    }`}
-                  >
-                    Cấu hình
+                    Yêu Cầu Hoàn Tiền
                   </Link>
                 </>
+              )}
+              {isAdmin && (
+                <Link
+                  to="/dashboard/manage"
+                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    location.pathname.startsWith('/dashboard/manage')
+                      ? 'bg-orange-100 text-orange-600'
+                      : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'
+                  }`}
+                >
+                  Quản lý người dùng
+                </Link>
               )}
             </nav>
 
             {/* User Info */}
             <div className="hidden md:flex items-center space-x-4">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+                <Wallet size={18} className="text-orange-600" />
+                <span className="text-sm font-semibold text-gray-900">
+                  {user?.wallet?.toLocaleString('vi-VN') || '0'} ₫
+                </span>
+              </div>
               <div className="text-right">
                 <p className="text-sm font-semibold text-gray-900">{user?.fullName}</p>
                 <p className="text-xs font-medium text-orange-600">{user?.role}</p>
@@ -171,6 +182,8 @@ export default function Layout() {
               >
                 <LogOut size={20} />
               </button>
+
+ 
             </div>
 
             {/* Mobile menu button */}
@@ -230,6 +243,15 @@ export default function Layout() {
                   </Link>
                 </>
               )}
+              {isOrganizer && (
+                <Link
+                  to="/dashboard/reports"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Báo cáo
+                </Link>
+              )}
               {!isOrganizer && !isStaff && (
                 <>
                   <Link
@@ -251,29 +273,30 @@ export default function Layout() {
               {isStaff && (
                 <>
                   <Link
-                    to="/dashboard/venues"
+                    to="/dashboard/report-requests"
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Địa điểm
-                  </Link>
-                  <Link
-                    to="/dashboard/reports"
-                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Báo cáo
-                  </Link>
-                  <Link
-                    to="/dashboard/system-config"
-                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Chính Sách
+                    Yêu Cầu Hoàn Tiền
                   </Link>
                 </>
               )}
+              {isAdmin && (
+                <Link
+                  to="/dashboard/manage"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Quản lý người dùng
+                </Link>
+              )}
               <div className="px-3 py-2 border-t mt-2">
+                <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+                  <Wallet size={18} className="text-orange-600" />
+                  <span className="text-sm font-semibold text-gray-900">
+                    {user?.wallet?.toLocaleString('vi-VN') || '0'} ₫
+                  </span>
+                </div>
                 <p className="text-sm font-medium text-gray-900">{user?.fullName}</p>
                 <p className="text-xs text-gray-500">{user?.role}</p>
                 <button
