@@ -4,6 +4,7 @@ import { GraduationCap } from 'lucide-react'
 import axios from 'axios'
 import fptLogo from '../assets/fpt-logo.png'
 import fptCampus from '../assets/dai-hoc-fpt-tp-hcm-1.jpeg'
+import { useToast } from '../contexts/ToastContext'
 
 const API_URL = '/api'
 
@@ -27,6 +28,7 @@ export default function ResetPassword() {
   const [otpCountdown, setOtpCountdown] = useState(0)
   const [resetToken, setResetToken] = useState('')
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   // Countdown timer for resend OTP
   useEffect(() => {

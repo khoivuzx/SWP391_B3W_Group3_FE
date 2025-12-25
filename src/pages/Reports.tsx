@@ -51,6 +51,7 @@ type Registration = {
   userEmail: string
   seatNumber?: string | null
   registeredAt: string
+  purchaseDate?: string | null
   checkedIn: boolean
   checkedInAt?: string | null
   checkedOut?: boolean
@@ -380,6 +381,17 @@ export default function Reports() {
             if (!ticketType) ticketType = findDeepKey(r, ['ticketName', 'ticket_type']) ?? null
 
             const registeredAt = resolveFirst(r, ['registeredAt', 'createdAt', 'created_at']) ?? ''
+            const purchaseDate =
+              resolveFirst(r, [
+                'purchaseDate',
+                'purchasedAt',
+                'purchase_at',
+                'purchase_time',
+                'purchased_at',
+                'createdAt',
+                'created_at',
+                'registeredAt',
+              ]) ?? null
 
             // checkedIn/checkedOut: boolean có thể đến từ cờ hoặc từ thời gian check-in/out
             const checkedIn =
@@ -407,6 +419,7 @@ export default function Reports() {
                 null,
               ticketType: ticketType ?? null,
               ticketCode: resolveFirst(r, ['ticketCode', 'code']) ?? null,
+              purchaseDate,
               status:
                 resolveFirst(r, ['status', 'ticketStatus', 'state']) ??
                 findDeepKey(r, ['status', 'ticketStatus']) ??
@@ -453,6 +466,17 @@ export default function Reports() {
                   if (!ticketType) ticketType = findDeepKey(t, ['ticketName', 'ticket_type']) ?? null
 
                   const registeredAt = resolveFirst(t, ['registeredAt', 'createdAt', 'created_at']) ?? ''
+                  const purchaseDate =
+                    resolveFirst(t, [
+                      'purchaseDate',
+                      'purchasedAt',
+                      'purchase_at',
+                      'purchase_time',
+                      'purchased_at',
+                      'createdAt',
+                      'created_at',
+                      'registeredAt',
+                    ]) ?? null
 
                   const checkedIn =
                     !!resolveFirst(t, ['checkedIn', 'isCheckedIn', 'checked_in']) ||
@@ -479,6 +503,7 @@ export default function Reports() {
                       null,
                     ticketType: ticketType ?? null,
                     ticketCode: resolveFirst(t, ['ticketCode', 'code']) ?? null,
+                    purchaseDate,
                     status:
                       resolveFirst(t, ['status', 'ticketStatus', 'state']) ??
                       findDeepKey(t, ['status', 'ticketStatus']) ??
@@ -627,6 +652,17 @@ export default function Reports() {
     if (!d || d === 0) return '0,0%'
     const val = (n / d) * 100
     return val.toFixed(1).replace('.', ',') + '%'
+  }
+
+  const formatDateTime = (s?: string | null) => {
+    if (!s) return '-'
+    try {
+      const d = new Date(s)
+      if (isNaN(d.getTime())) return '-'
+      return format(d, 'Pp', { locale: vi })
+    } catch (e) {
+      return String(s)
+    }
   }
 
   const refundedRate = formatPercent(selectedStats?.refundedRate, refundedCount, totalRegistrations)
@@ -891,6 +927,7 @@ export default function Reports() {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tên</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Seat</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Loại vé</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Ngày mua</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Trạng thái</th>
                 </tr>
               </thead>
@@ -898,7 +935,7 @@ export default function Reports() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {registrations.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
                       Không có vé / đăng ký nào
                     </td>
                   </tr>
@@ -937,6 +974,7 @@ export default function Reports() {
                         <td className="px-4 py-3 text-sm text-gray-700">{r.userName ?? '-'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{seat}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{seatType}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime((r as any).purchaseDate ?? r.purchaseDate ?? null)}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">
                           <div className="flex flex-col">
                             {statusLabel ? <span className={statusBadgeClass}>{statusLabel}</span> : null}
